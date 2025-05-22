@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Upload, Image } from "lucide-react";
 import { useState } from "react";
 
 const WorkOrders = () => {
@@ -21,6 +22,7 @@ const WorkOrders = () => {
     phone: "",
   });
 
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -32,9 +34,21 @@ const WorkOrders = () => {
     setFormData((prev) => ({ ...prev, priority: value }));
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     console.log("Work order submitted:", formData);
+    console.log("Photo included:", photoPreview ? "Yes" : "No");
     setSubmitted(true);
     // In a real app, you would send this data to your backend
   };
@@ -133,6 +147,61 @@ const WorkOrders = () => {
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+                  
+                  {/* Photo Upload Section */}
+                  <div className="space-y-2">
+                    <Label htmlFor="photo">Upload Photo (Optional)</Label>
+                    <div className="border-2 border-dashed border-gray-300 rounded-md p-4">
+                      <div className="flex flex-col items-center">
+                        {photoPreview ? (
+                          <div className="relative w-full">
+                            <img 
+                              src={photoPreview} 
+                              alt="Preview" 
+                              className="mx-auto max-h-48 object-contain rounded-md mb-2" 
+                            />
+                            <Button 
+                              type="button"
+                              variant="outline" 
+                              size="sm"
+                              className="absolute top-0 right-0 bg-white" 
+                              onClick={() => setPhotoPreview(null)}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        ) : (
+                          <>
+                            <Image className="h-10 w-10 text-gray-400 mb-2" />
+                            <p className="text-sm text-gray-500">
+                              Drag and drop an image, or click to browse
+                            </p>
+                          </>
+                        )}
+                        <div className="mt-4 w-full">
+                          <label htmlFor="file-upload" className="w-full">
+                            <Button 
+                              type="button" 
+                              variant="outline" 
+                              className="w-full flex items-center justify-center"
+                              onClick={() => document.getElementById('file-upload')?.click()}
+                            >
+                              <Upload className="mr-2" size={16} />
+                              {photoPreview ? "Replace Photo" : "Upload Photo"}
+                            </Button>
+                            <Input
+                              id="file-upload"
+                              type="file"
+                              accept="image/*"
+                              className="sr-only"
+                              onChange={handleFileChange}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500">Adding a photo helps our maintenance team better understand and address the issue.</p>
                   </div>
                   
                   <div className="space-y-2">
