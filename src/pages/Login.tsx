@@ -14,7 +14,6 @@ import { toast } from "sonner";
 const Login = () => {
   const [email, setEmail] = useState("");
   const [isEmailSubmitted, setIsEmailSubmitted] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -26,17 +25,12 @@ const Login = () => {
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Simple client-side validation
-    if (!email || !email.includes('@') || !email.includes('.')) {
+    if (!email || !email.includes('@')) {
       toast.error("Please enter a valid email address");
       return;
     }
 
-    setIsLoading(true);
     const { error } = await login(email);
-    setIsLoading(false);
-    
     if (!error) {
       setIsEmailSubmitted(true);
     }
@@ -79,16 +73,9 @@ const Login = () => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
-                      autoComplete="email"
                     />
                   </div>
-                  <Button 
-                    type="submit" 
-                    className="w-full" 
-                    disabled={isLoading}
-                  >
-                    {isLoading ? "Sending..." : "Send Login Link"}
-                  </Button>
+                  <Button type="submit" className="w-full">Send Login Link</Button>
                 </form>
               ) : (
                 <div className="space-y-4">

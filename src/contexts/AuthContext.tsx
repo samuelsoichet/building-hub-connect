@@ -17,18 +17,16 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Get the application URL based on current environment
 const getAppUrl = () => {
-  // Get the current origin (protocol + hostname + port)
-  const origin = window.location.origin;
+  // Get the current hostname (domain)
+  const hostname = window.location.hostname;
   
-  console.log("Current origin:", origin);
-  return origin;
-};
-
-// Simple email validation function
-const isValidEmail = (email: string): boolean => {
-  // Basic email validation regex
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
+  // If we're on localhost, use the full origin (e.g., http://localhost:3000)
+  if (hostname === 'localhost') {
+    return window.location.origin;
+  }
+  
+  // For deployed environments, ensure we use the current protocol and hostname
+  return `${window.location.protocol}//${hostname}`;
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -38,35 +36,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
-    // Handle hash fragment for magic link auth
-    const handleHashRedirect = async () => {
-      // Check if we have an access_token in the URL
-      const hash = window.location.hash;
-      if (hash && hash.includes('access_token')) {
-        // Remove the hash to avoid showing it to the user
-        window.location.hash = '';
-        
-        // We don't need to manually process the hash since Supabase will handle it
-        const { data, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error("Error handling auth redirect:", error);
-          toast.error("Authentication failed");
-        } else if (data.session) {
-          // The session is already set in Supabase's internal state
-          // Navigate to the work orders page
-          window.location.href = '/work-orders';
-        }
-      }
-    };
-
-    handleHashRedirect();
-
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
-        console.log("Auth state changed:", event);
-        
         if (currentSession) {
           setIsAuthenticated(true);
           setEmail(currentSession.user?.email || null);
@@ -111,28 +83,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string) => {
     try {
-      // Validate email format on the client side before sending to Supabase
-      if (!isValidEmail(email)) {
-        toast.error("Please enter a valid email address");
-        return { error: "Invalid email format" };
-      }
-      
-      // Clean up the email by trimming whitespace
-      const cleanEmail = email.trim();
-      
-      const appUrl = getAppUrl();
-      const redirectTo = `${appUrl}/work-orders`;
+      const redirectTo = `${getAppUrl()}/work-orders`;
       console.log(`Setting redirect URL to: ${redirectTo}`);
       
       const { data, error } = await supabase.auth.signInWithOtp({
-        email: cleanEmail,
+        email,
         options: {
           emailRedirectTo: redirectTo,
         }
       });
       
       if (error) {
-        console.error("Login error details:", error);
         toast.error(error.message);
         return { error: error.message };
       }
@@ -140,8 +101,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.success("Check your email for the login link");
       return {};
     } catch (error: any) {
-      console.error("Login error:", error);
       toast.error("Failed to send login link");
+      console.error("Login error:", error);
       return { error: error.message };
     }
   };
