@@ -1,4 +1,3 @@
-
 import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
@@ -110,6 +109,7 @@ const Payments = () => {
             <li>In the memo field, include your account number or suite number</li>
             <li>Complete the payment in your banking app</li>
           </ol>
+          <p className="mt-2 text-sm">Make payments payable to: <span className="font-semibold">2000 Brooklyn Street LLC</span></p>
           <p className="mt-2 text-sm">Once your payment is sent, please enter the Zelle email you used below for our records.</p>
         </div>
       ),
@@ -124,6 +124,7 @@ const Payments = () => {
             <li>In the description, include your account number or suite number</li>
             <li>Tap "Pay"</li>
           </ol>
+          <p className="mt-2 text-sm">Make payments payable to: <span className="font-semibold">2000 Brooklyn Street LLC</span></p>
           <p className="mt-2 text-sm">After sending payment, please enter your Venmo username below for our records.</p>
         </div>
       ),
@@ -135,7 +136,7 @@ const Payments = () => {
             <div className="text-sm">Bank Name:</div>
             <div className="font-medium">First National Bank</div>
             <div className="text-sm">Account Name:</div>
-            <div className="font-medium">Property Portal Holdings LLC</div>
+            <div className="font-medium">2000 Brooklyn Street LLC</div>
             <div className="text-sm">Routing Number:</div>
             <div className="font-medium">021000021</div>
             <div className="text-sm">Account Number:</div>
@@ -171,7 +172,7 @@ const Payments = () => {
               <div className="text-sm">Bank Name:</div>
               <div className="font-medium">First National Bank</div>
               <div className="text-sm">Account Name:</div>
-              <div className="font-medium">Property Portal Holdings LLC</div>
+              <div className="font-medium">2000 Brooklyn Street LLC</div>
               <div className="text-sm">Routing (ABA) Number:</div>
               <div className="font-medium">021000021</div>
               <div className="text-sm">Account Number:</div>
@@ -182,7 +183,7 @@ const Payments = () => {
               <div className="text-sm">Bank Name:</div>
               <div className="font-medium">First National Bank</div>
               <div className="text-sm">Account Name:</div>
-              <div className="font-medium">Property Portal Holdings LLC</div>
+              <div className="font-medium">2000 Brooklyn Street LLC</div>
               <div className="text-sm">SWIFT Code:</div>
               <div className="font-medium">FNBCUS33</div>
               <div className="text-sm">Account Number (IBAN):</div>
