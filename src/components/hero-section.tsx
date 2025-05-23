@@ -22,7 +22,7 @@ export function HeroSection() {
             <Button 
               asChild 
               size="lg" 
-              className="bg-white text-navy-800 hover:bg-gray-100 font-medium"
+              className="bg-white text-navy-800 hover:bg-gray-100 font-semibold"
             >
               <Link to={isAuthenticated ? "/work-orders" : "/login"}>
                 {isAuthenticated ? (
@@ -36,7 +36,7 @@ export function HeroSection() {
               asChild 
               variant="outline" 
               size="lg" 
-              className="border-white text-white hover:bg-navy-700 font-medium"
+              className="border-white text-white hover:bg-navy-700 font-semibold border-2"
             >
               <Link to="/documents">
                 Document Repository
@@ -46,7 +46,7 @@ export function HeroSection() {
               asChild 
               variant="outline" 
               size="lg" 
-              className="border-white text-white hover:bg-navy-700 font-medium"
+              className="border-white text-white hover:bg-navy-700 font-semibold border-2"
             >
               <Link to="/payments">
                 Make a Payment
