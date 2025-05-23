@@ -1,4 +1,3 @@
-
 import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
@@ -10,21 +9,112 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CreditCard, Calendar, Check, Clock, History, Smartphone, Building, Banknote } from "lucide-react";
-import { useState } from "react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { CreditCard, Calendar, Check, Clock, History, Smartphone, Building, Banknote, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { createCheckoutSession, checkPaymentStatus, fetchPaymentHistory, fetchTenantBalance } from "@/services/payment-service";
+import { useSearchParams } from "react-router-dom";
+
+interface Payment {
+  id: string;
+  amount: number;
+  status: string;
+  description: string;
+  created_at: string;
+  receipt_url: string | null;
+}
+
+interface TenantBalance {
+  current_balance: number;
+  rent_amount: number;
+  next_payment_due: string | null;
+  last_payment_date: string | null;
+  suite_number: string | null;
+}
 
 const Payments = () => {
   const [paymentAmount, setPaymentAmount] = useState("2500.00");
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentSubmitted, setPaymentSubmitted] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [venmoUsername, setVenmoUsername] = useState("");
   const [zelleEmail, setZelleEmail] = useState("");
   const [bankName, setBankName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [routingNumber, setRoutingNumber] = useState("");
   const [wireTransferType, setWireTransferType] = useState("domestic");
+  const [paymentHistory, setPaymentHistory] = useState<Payment[]>([]);
+  const [tenantBalance, setTenantBalance] = useState<TenantBalance | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const { isAuthenticated } = useAuth();
+  const [searchParams] = useSearchParams();
+  
+  // Check for successful payment return from Stripe
+  useEffect(() => {
+    const success = searchParams.get("success");
+    const sessionId = searchParams.get("session_id");
+    const paymentId = searchParams.get("payment_id");
+    
+    if (success === "true" && sessionId && paymentId) {
+      // Verify the payment status with our backend
+      const verifyPayment = async () => {
+        try {
+          const result = await checkPaymentStatus(sessionId, paymentId);
+          if (result?.payment?.status === "paid") {
+            toast.success("Payment successful! Thank you for your payment.");
+            setPaymentSubmitted(true);
+            // Refresh payment history and balance
+            loadPaymentData();
+          }
+        } catch (error) {
+          console.error("Error verifying payment:", error);
+        }
+      };
+      
+      verifyPayment();
+    } else if (success === "false") {
+      toast.error("Payment was cancelled or unsuccessful. Please try again.");
+    }
+  }, [searchParams]);
+  
+  // Load payment history and tenant balance on component mount
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadPaymentData();
+    } else {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated]);
+  
+  const loadPaymentData = async () => {
+    setIsLoading(true);
+    try {
+      // Load payment history
+      const payments = await fetchPaymentHistory();
+      setPaymentHistory(payments || []);
+      
+      // Load tenant balance
+      const balance = await fetchTenantBalance();
+      setTenantBalance(balance);
+    } catch (error) {
+      console.error("Error loading payment data:", error);
+      toast.error("Failed to load payment information. Please try again later.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   // Calculate the credit card fee
   const calculateCreditCardFee = (amount: string) => {
@@ -36,64 +126,66 @@ const Payments = () => {
   const creditCardFee = calculateCreditCardFee(paymentAmount);
   const totalWithFee = (parseFloat(paymentAmount) + parseFloat(creditCardFee)).toFixed(2);
   
-  // Mock payment history data
-  const paymentHistory = [
-    {
-      id: 1,
-      date: "2024-04-01",
-      amount: "2,500.00",
-      type: "Rent",
-      status: "Paid",
-      reference: "INV-2024-04",
-    },
-    {
-      id: 2,
-      date: "2024-03-01",
-      amount: "2,500.00",
-      type: "Rent",
-      status: "Paid",
-      reference: "INV-2024-03",
-    },
-    {
-      id: 3,
-      date: "2024-02-01",
-      amount: "2,500.00",
-      type: "Rent",
-      status: "Paid",
-      reference: "INV-2024-02",
-    },
-    {
-      id: 4,
-      date: "2024-01-15",
-      amount: "350.00",
-      type: "Utilities",
-      status: "Paid",
-      reference: "UTIL-2024-01",
-    },
-  ];
-
-  // Mock upcoming payments
-  const upcomingPayments = [
-    {
-      id: 1,
-      dueDate: "2024-06-01",
-      amount: "2,500.00",
-      description: "Monthly Rent - June 2024",
-    },
-    {
-      id: 2,
-      dueDate: "2024-07-01",
-      amount: "2,500.00",
-      description: "Monthly Rent - July 2024",
-    },
-  ];
-
-  const handleSubmitPayment = (e: React.FormEvent) => {
+  // Mock upcoming payments based on tenant balance
+  const getUpcomingPayments = () => {
+    if (!tenantBalance || !tenantBalance.rent_amount) return [];
+    
+    const today = new Date();
+    const nextMonth = new Date(today);
+    nextMonth.setMonth(today.getMonth() + 1);
+    nextMonth.setDate(1); // First day of next month
+    
+    const twoMonthsLater = new Date(nextMonth);
+    twoMonthsLater.setMonth(nextMonth.getMonth() + 1);
+    
+    return [
+      {
+        id: 1,
+        dueDate: nextMonth.toISOString().split('T')[0],
+        amount: tenantBalance.rent_amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        description: `Monthly Rent - ${nextMonth.toLocaleString('default', { month: 'long' })} ${nextMonth.getFullYear()}`
+      },
+      {
+        id: 2,
+        dueDate: twoMonthsLater.toISOString().split('T')[0],
+        amount: tenantBalance.rent_amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        description: `Monthly Rent - ${twoMonthsLater.toLocaleString('default', { month: 'long' })} ${twoMonthsLater.getFullYear()}`
+      }
+    ];
+  };
+  
+  const handleSubmitPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, this would process the payment through a payment gateway
-    console.log("Payment submitted:", { amount: paymentAmount, date: paymentDate });
-    setPaymentSubmitted(true);
-    toast.success("Payment has been successfully submitted");
+    
+    if (!isAuthenticated) {
+      toast.error("You must be logged in to make a payment.");
+      return;
+    }
+    
+    setIsProcessing(true);
+    
+    try {
+      const amountNum = parseFloat(paymentAmount);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        toast.error("Please enter a valid payment amount");
+        return;
+      }
+      
+      // Create a Stripe Checkout session
+      const result = await createCheckoutSession(amountNum, "Rent Payment");
+      
+      if (result?.url) {
+        // Redirect to Stripe Checkout
+        window.location.href = result.url;
+      } else {
+        toast.error("Failed to create payment session. Please try again.");
+      }
+    } catch (error) {
+      console.error("Payment error:", error);
+      toast.error("Payment processing error. Please try again later.");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   // Display instructions for a specific payment method
@@ -200,6 +292,37 @@ const Payments = () => {
     
     return instructions[method as keyof typeof instructions];
   };
+  
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  };
+  
+  // Format currency for display
+  const formatCurrency = (amount: number) => {
+    return amount.toLocaleString('en-US', { 
+      style: 'currency', 
+      currency: 'USD', 
+      minimumFractionDigits: 2 
+    });
+  };
+  
+  // Get status badge color
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'paid':
+        return 'success';
+      case 'pending':
+        return 'warning';
+      case 'failed':
+        return 'destructive';
+      case 'expired':
+        return 'secondary';
+      default:
+        return 'default';
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -212,364 +335,411 @@ const Payments = () => {
       </div>
       
       <main className="container mx-auto px-4 py-8 flex-grow">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Payment Form */}
-          <div className="lg:col-span-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Make a Payment</CardTitle>
-                <CardDescription>
-                  Securely pay your rent or other fees online
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {paymentSubmitted ? (
-                  <div className="text-center py-8">
-                    <div className="mx-auto w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mb-4">
-                      <Check className="h-6 w-6 text-green-600" />
+        {isLoading ? (
+          <div className="flex justify-center items-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-2 text-lg">Loading payment information...</span>
+          </div>
+        ) : !isAuthenticated ? (
+          <div className="text-center py-10">
+            <h2 className="text-2xl font-bold mb-4">Sign In Required</h2>
+            <p className="mb-6">Please sign in to access the payment portal.</p>
+            <Button asChild>
+              <a href="/login">Sign In</a>
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Payment Form */}
+            <div className="lg:col-span-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Make a Payment</CardTitle>
+                  <CardDescription>
+                    Securely pay your rent or other fees online
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {paymentSubmitted ? (
+                    <div className="text-center py-8">
+                      <div className="mx-auto w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mb-4">
+                        <Check className="h-6 w-6 text-green-600" />
+                      </div>
+                      <h3 className="text-xl font-semibold mb-2">Payment Successful!</h3>
+                      <p className="text-gray-600 mb-6">
+                        Your payment of ${paymentAmount} has been processed successfully.
+                        A receipt has been sent to your email.
+                      </p>
+                      <Button onClick={() => setPaymentSubmitted(false)}>
+                        Make Another Payment
+                      </Button>
                     </div>
-                    <h3 className="text-xl font-semibold mb-2">Payment Successful!</h3>
-                    <p className="text-gray-600 mb-6">
-                      Your payment of ${paymentAmount} has been processed successfully.
-                      A receipt has been sent to your email.
-                    </p>
-                    <Button onClick={() => setPaymentSubmitted(false)}>
-                      Make Another Payment
-                    </Button>
-                  </div>
-                ) : (
-                  <form onSubmit={handleSubmitPayment}>
-                    <Tabs defaultValue="card" className="w-full">
-                      <TabsList className="grid w-full grid-cols-5">
-                        <TabsTrigger value="card">
-                          <CreditCard className="h-4 w-4 mr-2" />
-                          Credit Card
-                          <Badge variant="destructive" className="ml-1 text-[10px]">+3.5%</Badge>
-                        </TabsTrigger>
-                        <TabsTrigger value="zelle">
-                          <Smartphone className="h-4 w-4 mr-2" />
-                          Zelle
-                        </TabsTrigger>
-                        <TabsTrigger value="venmo">
-                          <Smartphone className="h-4 w-4 mr-2" />
-                          Venmo
-                        </TabsTrigger>
-                        <TabsTrigger value="ach">
-                          <Building className="h-4 w-4 mr-2" />
-                          ACH Transfer
-                        </TabsTrigger>
-                        <TabsTrigger value="wire">
-                          <Banknote className="h-4 w-4 mr-2" />
-                          Wire Transfer
-                        </TabsTrigger>
-                      </TabsList>
-                      
-                      <TabsContent value="card" className="space-y-4 pt-4">
-                        <div className="rounded-md bg-yellow-50 p-4 mb-4">
-                          <div className="flex">
-                            <div className="flex-shrink-0">
-                              <CreditCard className="h-5 w-5 text-yellow-400" aria-hidden="true" />
-                            </div>
-                            <div className="ml-3">
-                              <h3 className="text-sm font-medium text-yellow-800">Credit Card Fee Notice</h3>
-                              <div className="mt-2 text-sm text-yellow-700">
-                                <p>A 3.5% processing fee will be added to all credit card transactions.</p>
-                                <div className="mt-2 font-medium">
-                                  <p>Payment Amount: ${paymentAmount}</p>
-                                  <p>Processing Fee (3.5%): ${creditCardFee}</p>
-                                  <p>Total Amount: ${totalWithFee}</p>
+                  ) : (
+                    <form onSubmit={handleSubmitPayment}>
+                      <Tabs defaultValue="card" className="w-full">
+                        <TabsList className="grid w-full grid-cols-5">
+                          <TabsTrigger value="card">
+                            <CreditCard className="h-4 w-4 mr-2" />
+                            Credit Card
+                            <Badge variant="destructive" className="ml-1 text-[10px]">+3.5%</Badge>
+                          </TabsTrigger>
+                          <TabsTrigger value="zelle">
+                            <Smartphone className="h-4 w-4 mr-2" />
+                            Zelle
+                          </TabsTrigger>
+                          <TabsTrigger value="venmo">
+                            <Smartphone className="h-4 w-4 mr-2" />
+                            Venmo
+                          </TabsTrigger>
+                          <TabsTrigger value="ach">
+                            <Building className="h-4 w-4 mr-2" />
+                            ACH Transfer
+                          </TabsTrigger>
+                          <TabsTrigger value="wire">
+                            <Banknote className="h-4 w-4 mr-2" />
+                            Wire Transfer
+                          </TabsTrigger>
+                        </TabsList>
+                        
+                        <TabsContent value="card" className="space-y-4 pt-4">
+                          <div className="rounded-md bg-yellow-50 p-4 mb-4">
+                            <div className="flex">
+                              <div className="flex-shrink-0">
+                                <CreditCard className="h-5 w-5 text-yellow-400" aria-hidden="true" />
+                              </div>
+                              <div className="ml-3">
+                                <h3 className="text-sm font-medium text-yellow-800">Credit Card Fee Notice</h3>
+                                <div className="mt-2 text-sm text-yellow-700">
+                                  <p>A 3.5% processing fee will be added to all credit card transactions.</p>
+                                  <div className="mt-2 font-medium">
+                                    <p>Payment Amount: ${paymentAmount}</p>
+                                    <p>Processing Fee (3.5%): ${creditCardFee}</p>
+                                    <p>Total Amount: ${totalWithFee}</p>
+                                  </div>
                                 </div>
                               </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="space-y-2">
-                          <Label htmlFor="card-number">Card Number</Label>
-                          <Input id="card-number" placeholder="•••• •••• •••• ••••" />
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="expiry">Expiry Date</Label>
-                            <Input id="expiry" placeholder="MM/YY" />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="cvc">CVC</Label>
-                            <Input id="cvc" placeholder="•••" />
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="card-name">Cardholder Name</Label>
-                          <Input id="card-name" placeholder="Name on card" />
-                        </div>
-                      </TabsContent>
-                      
-                      <TabsContent value="zelle" className="space-y-4 pt-4">
-                        {renderPaymentInstructions("zelle")}
-                        <div className="space-y-2 mt-4">
-                          <Label htmlFor="zelle-email">Your Zelle Email/Phone</Label>
-                          <Input 
-                            id="zelle-email" 
-                            placeholder="email@example.com" 
-                            value={zelleEmail}
-                            onChange={(e) => setZelleEmail(e.target.value)}
-                          />
-                          <p className="text-sm text-gray-500 mt-1">
-                            This helps us track your payment in our system
+                          <p className="text-sm text-gray-500 mb-4">
+                            When you click "Make Payment", you'll be redirected to Stripe's secure payment page to complete your transaction.
                           </p>
-                        </div>
-                      </TabsContent>
-                      
-                      <TabsContent value="venmo" className="space-y-4 pt-4">
-                        {renderPaymentInstructions("venmo")}
-                        <div className="space-y-2 mt-4">
-                          <Label htmlFor="venmo-username">Your Venmo Username</Label>
-                          <Input 
-                            id="venmo-username" 
-                            placeholder="@username" 
-                            value={venmoUsername}
-                            onChange={(e) => setVenmoUsername(e.target.value)}
-                          />
-                          <p className="text-sm text-gray-500 mt-1">
-                            This helps us track your payment in our system
-                          </p>
-                        </div>
-                      </TabsContent>
-                      
-                      <TabsContent value="ach" className="space-y-4 pt-4">
-                        {renderPaymentInstructions("ach")}
-                        <div className="space-y-4 mt-4 border-t pt-4">
-                          <p className="font-medium">Record your ACH transfer details</p>
-                          <div className="space-y-2">
-                            <Label htmlFor="bank-name">Your Bank Name</Label>
+                        </TabsContent>
+                        
+                        <TabsContent value="zelle" className="space-y-4 pt-4">
+                          {renderPaymentInstructions("zelle")}
+                          <div className="space-y-2 mt-4">
+                            <Label htmlFor="zelle-email">Your Zelle Email/Phone</Label>
                             <Input 
-                              id="bank-name" 
-                              placeholder="Enter your bank name" 
-                              value={bankName}
-                              onChange={(e) => setBankName(e.target.value)}
+                              id="zelle-email" 
+                              placeholder="email@example.com" 
+                              value={zelleEmail}
+                              onChange={(e) => setZelleEmail(e.target.value)}
                             />
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="routing-number">Your Routing Number</Label>
-                              <Input 
-                                id="routing-number" 
-                                placeholder="9 digits" 
-                                value={routingNumber}
-                                onChange={(e) => setRoutingNumber(e.target.value)}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="account-number">Last 4 of Account</Label>
-                              <Input 
-                                id="account-number" 
-                                placeholder="Last 4 digits" 
-                                value={accountNumber}
-                                onChange={(e) => setAccountNumber(e.target.value)}
-                                maxLength={4}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </TabsContent>
-                      
-                      <TabsContent value="wire" className="pt-4">
-                        {renderPaymentInstructions("wire")}
-                        <div className="space-y-4 mt-4 border-t pt-4">
-                          <p className="font-medium">Record your wire transfer details</p>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="wire-bank">Your Bank Name</Label>
-                              <Input id="wire-bank" placeholder="Enter your bank name" />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="wire-date">Transfer Date</Label>
-                              <Input id="wire-date" type="date" defaultValue={paymentDate} />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="wire-reference">Reference/Confirmation Number</Label>
-                            <Input id="wire-reference" placeholder="Enter reference or confirmation number" />
                             <p className="text-sm text-gray-500 mt-1">
                               This helps us track your payment in our system
                             </p>
                           </div>
+                        </TabsContent>
+                        
+                        <TabsContent value="venmo" className="space-y-4 pt-4">
+                          {renderPaymentInstructions("venmo")}
+                          <div className="space-y-2 mt-4">
+                            <Label htmlFor="venmo-username">Your Venmo Username</Label>
+                            <Input 
+                              id="venmo-username" 
+                              placeholder="@username" 
+                              value={venmoUsername}
+                              onChange={(e) => setVenmoUsername(e.target.value)}
+                            />
+                            <p className="text-sm text-gray-500 mt-1">
+                              This helps us track your payment in our system
+                            </p>
+                          </div>
+                        </TabsContent>
+                        
+                        <TabsContent value="ach" className="space-y-4 pt-4">
+                          {renderPaymentInstructions("ach")}
+                          <div className="space-y-4 mt-4 border-t pt-4">
+                            <p className="font-medium">Record your ACH transfer details</p>
+                            <div className="space-y-2">
+                              <Label htmlFor="bank-name">Your Bank Name</Label>
+                              <Input 
+                                id="bank-name" 
+                                placeholder="Enter your bank name" 
+                                value={bankName}
+                                onChange={(e) => setBankName(e.target.value)}
+                              />
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="routing-number">Your Routing Number</Label>
+                                <Input 
+                                  id="routing-number" 
+                                  placeholder="9 digits" 
+                                  value={routingNumber}
+                                  onChange={(e) => setRoutingNumber(e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="account-number">Last 4 of Account</Label>
+                                <Input 
+                                  id="account-number" 
+                                  placeholder="Last 4 digits" 
+                                  value={accountNumber}
+                                  onChange={(e) => setAccountNumber(e.target.value)}
+                                  maxLength={4}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </TabsContent>
+                        
+                        <TabsContent value="wire" className="pt-4">
+                          {renderPaymentInstructions("wire")}
+                          <div className="space-y-4 mt-4 border-t pt-4">
+                            <p className="font-medium">Record your wire transfer details</p>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="wire-bank">Your Bank Name</Label>
+                                <Input id="wire-bank" placeholder="Enter your bank name" />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="wire-date">Transfer Date</Label>
+                                <Input id="wire-date" type="date" defaultValue={paymentDate} />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="wire-reference">Reference/Confirmation Number</Label>
+                              <Input id="wire-reference" placeholder="Enter reference or confirmation number" />
+                              <p className="text-sm text-gray-500 mt-1">
+                                This helps us track your payment in our system
+                              </p>
+                            </div>
+                          </div>
+                        </TabsContent>
+                      </Tabs>
+                      
+                      <Separator className="my-6" />
+                      
+                      <div className="space-y-6">
+                        <div className="space-y-2">
+                          <Label htmlFor="payment-amount">Payment Amount ($)</Label>
+                          <Input
+                            id="payment-amount"
+                            value={paymentAmount}
+                            onChange={(e) => setPaymentAmount(e.target.value)}
+                            placeholder="0.00"
+                          />
                         </div>
-                      </TabsContent>
-                    </Tabs>
-                    
-                    <Separator className="my-6" />
-                    
-                    <div className="space-y-6">
-                      <div className="space-y-2">
-                        <Label htmlFor="payment-amount">Payment Amount ($)</Label>
-                        <Input
-                          id="payment-amount"
-                          value={paymentAmount}
-                          onChange={(e) => setPaymentAmount(e.target.value)}
-                          placeholder="0.00"
-                        />
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="payment-date">Payment Date</Label>
+                          <Input
+                            id="payment-date"
+                            type="date"
+                            value={paymentDate}
+                            onChange={(e) => setPaymentDate(e.target.value)}
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="payment-memo">Memo (Optional)</Label>
+                          <Input id="payment-memo" placeholder="May 2024 Rent" />
+                        </div>
                       </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="payment-date">Payment Date</Label>
-                        <Input
-                          id="payment-date"
-                          type="date"
-                          value={paymentDate}
-                          onChange={(e) => setPaymentDate(e.target.value)}
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="payment-memo">Memo (Optional)</Label>
-                        <Input id="payment-memo" placeholder="May 2024 Rent" />
-                      </div>
-                    </div>
-                  </form>
+                    </form>
+                  )}
+                </CardContent>
+                {!paymentSubmitted && (
+                  <CardFooter className="flex justify-between">
+                    <p className="text-sm text-gray-500">
+                      Your payment information is encrypted and secure.
+                    </p>
+                    <Button 
+                      type="submit" 
+                      onClick={handleSubmitPayment}
+                      disabled={isProcessing}
+                    >
+                      {isProcessing ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <CreditCard className="mr-2 h-4 w-4" />
+                          Make Payment
+                        </>
+                      )}
+                    </Button>
+                  </CardFooter>
                 )}
-              </CardContent>
-              {!paymentSubmitted && (
-                <CardFooter className="flex justify-between">
-                  <p className="text-sm text-gray-500">
-                    Your payment information is encrypted and secure.
-                  </p>
-                  <Button type="submit" onClick={handleSubmitPayment}>
-                    <CreditCard className="mr-2 h-4 w-4" />
-                    Make Payment
-                  </Button>
-                </CardFooter>
-              )}
-            </Card>
-          </div>
-          
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Account Summary */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Account Summary</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Current Balance:</span>
-                    <span className="font-semibold">$2,500.00</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Due Date:</span>
-                    <span className="font-semibold">May 1, 2024</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Suite:</span>
-                    <span className="font-semibold">Suite 203</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              </Card>
+            </div>
             
-            {/* Upcoming Payments */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Calendar className="mr-2 h-5 w-5" />
-                  Upcoming Payments
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {upcomingPayments.length > 0 ? (
+            {/* Sidebar */}
+            <div className="space-y-6">
+              {/* Account Summary */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Account Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
                   <div className="space-y-4">
-                    {upcomingPayments.map((payment) => (
-                      <div key={payment.id} className="flex justify-between items-center">
-                        <div>
-                          <p className="font-medium">{payment.description}</p>
-                          <p className="text-sm text-gray-500">Due: {payment.dueDate}</p>
-                        </div>
-                        <span className="font-semibold">${payment.amount}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-center py-2 text-sm text-gray-500">No upcoming payments</p>
-                )}
-              </CardContent>
-            </Card>
-            
-            {/* Recent Transactions */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <History className="mr-2 h-5 w-5" />
-                  Recent Transactions
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {paymentHistory.slice(0, 3).map((payment) => (
-                  <div key={payment.id} className="flex justify-between items-center mb-3">
-                    <div>
-                      <p className="font-medium">{payment.type}</p>
-                      <p className="text-sm text-gray-500">{payment.date}</p>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Current Balance:</span>
+                      <span className="font-semibold">
+                        {tenantBalance ? formatCurrency(tenantBalance.current_balance) : '$0.00'}
+                      </span>
                     </div>
-                    <div className="flex items-center">
-                      <span className="font-semibold mr-2">${payment.amount}</span>
-                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
-                        {payment.status}
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Monthly Rent:</span>
+                      <span className="font-semibold">
+                        {tenantBalance ? formatCurrency(tenantBalance.rent_amount) : '$0.00'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Due Date:</span>
+                      <span className="font-semibold">
+                        {tenantBalance?.next_payment_due ? 
+                          formatDate(tenantBalance.next_payment_due) : 
+                          'Not set'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Suite:</span>
+                      <span className="font-semibold">
+                        {tenantBalance?.suite_number || 'Not assigned'}
                       </span>
                     </div>
                   </div>
-                ))}
-                <div className="mt-2 text-center">
-                  <Button variant="link" className="text-sm">
-                    View All Transactions
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+              
+              {/* Upcoming Payments */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Calendar className="mr-2 h-5 w-5" />
+                    Upcoming Payments
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {tenantBalance?.rent_amount ? (
+                    <div className="space-y-4">
+                      {getUpcomingPayments().map((payment) => (
+                        <div key={payment.id} className="flex justify-between items-center">
+                          <div>
+                            <p className="font-medium">{payment.description}</p>
+                            <p className="text-sm text-gray-500">Due: {formatDate(payment.dueDate)}</p>
+                          </div>
+                          <span className="font-semibold">${payment.amount}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center py-2 text-sm text-gray-500">No upcoming payments</p>
+                  )}
+                </CardContent>
+              </Card>
+              
+              {/* Recent Transactions */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <History className="mr-2 h-5 w-5" />
+                    Recent Transactions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {paymentHistory.length > 0 ? (
+                    <>
+                      {paymentHistory.slice(0, 3).map((payment) => (
+                        <div key={payment.id} className="flex justify-between items-center mb-3">
+                          <div>
+                            <p className="font-medium">{payment.description || "Payment"}</p>
+                            <p className="text-sm text-gray-500">{formatDate(payment.created_at)}</p>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="font-semibold mr-2">
+                              {formatCurrency(payment.amount)}
+                            </span>
+                            <Badge variant={getStatusBadgeVariant(payment.status)}>
+                              {payment.status}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                      {paymentHistory.length > 3 && (
+                        <div className="mt-2 text-center">
+                          <Button variant="link" className="text-sm" onClick={() => window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'})}>
+                            View All Transactions
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-center py-2 text-sm text-gray-500">No transaction history</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </div>
-        </div>
+        )}
         
         {/* Payment History Section */}
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Clock className="mr-2 h-5 w-5" />
-              Payment History
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4">Date</th>
-                    <th className="text-left py-3 px-4">Amount</th>
-                    <th className="text-left py-3 px-4">Type</th>
-                    <th className="text-left py-3 px-4">Status</th>
-                    <th className="text-left py-3 px-4 hidden md:table-cell">Reference</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paymentHistory.map((payment) => (
-                    <tr key={payment.id} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-4">{payment.date}</td>
-                      <td className="py-3 px-4">${payment.amount}</td>
-                      <td className="py-3 px-4">{payment.type}</td>
-                      <td className="py-3 px-4">
-                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
-                          {payment.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 hidden md:table-cell">{payment.reference}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+        {isAuthenticated && !isLoading && paymentHistory.length > 0 && (
+          <Card className="mt-8">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Clock className="mr-2 h-5 w-5" />
+                Payment History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="hidden md:table-cell">Receipt</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paymentHistory.map((payment) => (
+                      <TableRow key={payment.id}>
+                        <TableCell>{formatDate(payment.created_at)}</TableCell>
+                        <TableCell>{formatCurrency(payment.amount)}</TableCell>
+                        <TableCell>{payment.description || "Payment"}</TableCell>
+                        <TableCell>
+                          <Badge variant={getStatusBadgeVariant(payment.status)}>
+                            {payment.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          {payment.receipt_url ? (
+                            <Button variant="link" size="sm" asChild>
+                              <a href={payment.receipt_url} target="_blank" rel="noopener noreferrer">
+                                View Receipt
+                              </a>
+                            </Button>
+                          ) : (
+                            <span className="text-gray-500 text-sm">N/A</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </main>
       
       <Footer />

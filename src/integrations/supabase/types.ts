@@ -9,13 +9,147 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          id: string
+          payment_method: string | null
+          receipt_url: string | null
+          status: string
+          stripe_customer_id: string | null
+          stripe_payment_id: string | null
+          stripe_session_id: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          payment_method?: string | null
+          receipt_url?: string | null
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_payment_id?: string | null
+          stripe_session_id?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          payment_method?: string | null
+          receipt_url?: string | null
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_payment_id?: string | null
+          stripe_session_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tenant_balances: {
+        Row: {
+          created_at: string
+          current_balance: number
+          id: string
+          last_payment_date: string | null
+          next_payment_due: string | null
+          rent_amount: number
+          suite_number: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_balance?: number
+          id?: string
+          last_payment_date?: string | null
+          next_payment_due?: string | null
+          rent_amount?: number
+          suite_number?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_balance?: number
+          id?: string
+          last_payment_date?: string | null
+          next_payment_due?: string | null
+          rent_amount?: number
+          suite_number?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tenant_profiles: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          phone: string | null
+          stripe_customer_id: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          stripe_customer_id?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          stripe_customer_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      tenant_payment_dashboard: {
+        Row: {
+          current_balance: number | null
+          email: string | null
+          full_name: string | null
+          next_payment_due: string | null
+          phone: string | null
+          rent_amount: number | null
+          stripe_customer_id: string | null
+          suite_number: string | null
+          tenant_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      update_payment_status: {
+        Args: {
+          payment_id: string
+          new_status: string
+          stripe_session_id?: string
+          receipt_url?: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
