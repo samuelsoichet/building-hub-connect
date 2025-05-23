@@ -107,7 +107,8 @@ const Login = () => {
                   </div>
                   <Button 
                     type="submit" 
-                    className="w-full bg-navy-600 hover:bg-navy-700 text-white font-medium" 
+                    variant="primary"
+                    className="w-full" 
                     disabled={isLoading}
                     onClick={(e) => {
                       console.log("Button clicked directly");
