@@ -10,14 +10,70 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
+import { 
+  Form, 
+  FormControl, 
+  FormField, 
+  FormItem, 
+  FormLabel, 
+  FormMessage 
+} from "@/components/ui/form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+
+// Define form schemas
+const loginSchema = z.object({
+  email: z.string().email("Please enter a valid email address"),
+});
+
+const registerSchema = z.object({
+  email: z.string().email("Please enter a valid email address"),
+  role: z.enum(["tenant", "admin", "maintenance"], {
+    required_error: "Please select a role",
+  }),
+  termsAccepted: z.literal(true, {
+    errorMap: () => ({ message: "You must accept the terms and conditions" }),
+  }),
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
+type RegisterFormValues = z.infer<typeof registerSchema>;
 
 const Login = () => {
-  const [email, setEmail] = useState("");
   const [isEmailSubmitted, setIsEmailSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { login, isAuthenticated } = useAuth();
+  const { login, register, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<"login" | "register">("login");
+
+  // Login form
+  const loginForm = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+    },
+  });
+
+  // Register form
+  const registerForm = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      email: "",
+      role: "tenant",
+      termsAccepted: false,
+    },
+  });
 
   // If user is already authenticated, redirect them
   if (isAuthenticated) {
@@ -25,30 +81,12 @@ const Login = () => {
     return null;
   }
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("Form submitted with email:", email);
-    
-    // Trim email to remove any whitespace
-    const trimmedEmail = email.trim();
-    
-    if (!trimmedEmail) {
-      toast.error("Please enter an email address");
-      return;
-    }
-
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail)) {
-      toast.error("Please enter a valid email address");
-      return;
-    }
-
+  const handleLoginSubmit = async (values: LoginFormValues) => {
+    console.log("Login form submitted with values:", values);
     setIsLoading(true);
 
     try {
-      console.log("Attempting login with email:", trimmedEmail);
-      const { error } = await login(trimmedEmail);
+      const { error } = await login(values.email);
       
       if (error) {
         console.error("Login error:", error);
@@ -65,6 +103,28 @@ const Login = () => {
     }
   };
 
+  const handleRegisterSubmit = async (values: RegisterFormValues) => {
+    console.log("Registration form submitted with values:", values);
+    setIsLoading(true);
+
+    try {
+      const { error } = await register(values.email, values.role);
+      
+      if (error) {
+        console.error("Registration error:", error);
+        toast.error(error || "Failed to send registration link");
+      } else {
+        setIsEmailSubmitted(true);
+        toast.success("Registration successful! Please check your email for a verification link");
+      }
+    } catch (err: any) {
+      console.error("Registration error:", err);
+      toast.error(err.message || "Failed to process registration");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
@@ -72,83 +132,199 @@ const Login = () => {
       <div className="bg-navy-800 py-8">
         <div className="container mx-auto px-4">
           <Heading className="text-white text-center">
-            {isEmailSubmitted ? "Check Your Email" : "Login to Submit Work Order"}
+            {isEmailSubmitted ? "Check Your Email" : activeTab === "login" ? "Login to Your Account" : "Create Your Account"}
           </Heading>
         </div>
       </div>
       
       <main className="container mx-auto px-4 py-8 flex-grow">
         <div className="max-w-md mx-auto my-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {isEmailSubmitted ? "Check Your Email" : "Login"}
-              </CardTitle>
-              <CardDescription>
-                {isEmailSubmitted 
-                  ? "A login link has been sent to your email address" 
-                  : "Enter your email address to receive a one-time login link"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!isEmailSubmitted ? (
-                <form onSubmit={handleEmailSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email Address</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="your.email@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={isLoading}
-                      required
-                    />
-                  </div>
-                  <Button 
-                    type="submit" 
-                    variant="primary"
-                    className="w-full" 
-                    disabled={isLoading}
-                    onClick={(e) => {
-                      console.log("Button clicked directly");
-                      if (!isLoading) {
-                        // This is a backup in case the form submit event is not firing
-                        // We'll still use the form's onSubmit as the primary handler
-                        handleEmailSubmit(e);
-                      }
-                    }}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Sending...
-                      </>
-                    ) : (
-                      "Send Login Link"
-                    )}
-                  </Button>
-                </form>
-              ) : (
+          {!isEmailSubmitted ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  {activeTab === "login" ? "Login" : "Register"}
+                </CardTitle>
+                <CardDescription>
+                  {activeTab === "login" 
+                    ? "Enter your email address to receive a one-time login link" 
+                    : "Create a new account to access tenant services"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Tabs 
+                  value={activeTab} 
+                  onValueChange={(value) => setActiveTab(value as "login" | "register")}
+                  className="w-full"
+                >
+                  <TabsList className="grid w-full grid-cols-2 mb-6">
+                    <TabsTrigger value="login">Login</TabsTrigger>
+                    <TabsTrigger value="register">Register</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="login">
+                    <Form {...loginForm}>
+                      <form onSubmit={loginForm.handleSubmit(handleLoginSubmit)} className="space-y-4">
+                        <FormField
+                          control={loginForm.control}
+                          name="email"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Email Address</FormLabel>
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  type="email"
+                                  placeholder="your.email@example.com"
+                                  disabled={isLoading}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <Button 
+                          type="submit" 
+                          variant="primary"
+                          className="w-full" 
+                          disabled={isLoading}
+                        >
+                          {isLoading ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Sending...
+                            </>
+                          ) : (
+                            "Send Login Link"
+                          )}
+                        </Button>
+                      </form>
+                    </Form>
+                  </TabsContent>
+                  
+                  <TabsContent value="register">
+                    <Form {...registerForm}>
+                      <form onSubmit={registerForm.handleSubmit(handleRegisterSubmit)} className="space-y-4">
+                        <FormField
+                          control={registerForm.control}
+                          name="email"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Email Address</FormLabel>
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  type="email"
+                                  placeholder="your.email@example.com"
+                                  disabled={isLoading}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        
+                        <FormField
+                          control={registerForm.control}
+                          name="role"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Account Type</FormLabel>
+                              <Select 
+                                onValueChange={field.onChange} 
+                                defaultValue={field.value}
+                                disabled={isLoading}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select your account type" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="tenant">Tenant</SelectItem>
+                                  <SelectItem value="admin">Administrator</SelectItem>
+                                  <SelectItem value="maintenance">Maintenance Staff</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={registerForm.control}
+                          name="termsAccepted"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                  disabled={isLoading}
+                                />
+                              </FormControl>
+                              <div className="space-y-1 leading-none">
+                                <FormLabel>
+                                  I accept the <a href="#" className="text-blue-600 hover:underline">terms and conditions</a>
+                                </FormLabel>
+                                <FormMessage />
+                              </div>
+                            </FormItem>
+                          )}
+                        />
+                        
+                        <Button 
+                          type="submit" 
+                          variant="primary"
+                          className="w-full" 
+                          disabled={isLoading}
+                        >
+                          {isLoading ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Processing...
+                            </>
+                          ) : (
+                            "Create Account"
+                          )}
+                        </Button>
+                      </form>
+                    </Form>
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Check Your Email</CardTitle>
+                <CardDescription>
+                  {activeTab === "login" 
+                    ? "A login link has been sent to your email address" 
+                    : "A verification link has been sent to your email address"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
                 <div className="space-y-4">
                   <p className="text-center text-gray-600">
-                    We've sent a magic link to <strong>{email}</strong>
+                    We've sent a magic link to <strong>{activeTab === "login" ? loginForm.getValues().email : registerForm.getValues().email}</strong>
                   </p>
                   <p className="text-center text-gray-600">
-                    Click the link in the email to sign in
+                    Click the link in the email to {activeTab === "login" ? "sign in" : "verify your account"}
                   </p>
                   <Button 
-                    variant="link" 
-                    className="w-full" 
+                    variant="outline"
+                    className="w-full flex items-center justify-center" 
                     onClick={() => setIsEmailSubmitted(false)}
                     disabled={isLoading}
                   >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
                     Use a different email
                   </Button>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </main>
       

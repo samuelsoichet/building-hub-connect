@@ -123,6 +123,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       tenant_payment_dashboard: {
@@ -141,6 +165,14 @@ export type Database = {
       }
     }
     Functions: {
+      get_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: Database["public"]["Enums"]["user_role"]
+      }
+      has_role: {
+        Args: { role: Database["public"]["Enums"]["user_role"] }
+        Returns: boolean
+      }
       update_payment_status: {
         Args: {
           payment_id: string
@@ -152,7 +184,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      user_role: "admin" | "tenant" | "maintenance"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -267,6 +299,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      user_role: ["admin", "tenant", "maintenance"],
+    },
   },
 } as const

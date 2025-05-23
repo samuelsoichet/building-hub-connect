@@ -27,9 +27,28 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/documents" element={<Documents />} />
             
-            {/* Protected Routes */}
+            {/* Protected Routes for all authenticated users */}
             <Route element={<ProtectedRoute />}>
               <Route path="/work-orders" element={<WorkOrders />} />
+            </Route>
+            
+            {/* Routes that require tenant role */}
+            <Route element={<ProtectedRoute allowedRoles={['tenant']} />}>
+              {/* Add tenant-specific routes here */}
+            </Route>
+            
+            {/* Routes that require admin role */}
+            <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
+              {/* Add admin-specific routes here */}
+            </Route>
+            
+            {/* Routes that require maintenance role */}
+            <Route element={<ProtectedRoute allowedRoles={['maintenance']} />}>
+              {/* Add maintenance-specific routes here */}
+            </Route>
+            
+            {/* Routes for admins and tenants */}
+            <Route element={<ProtectedRoute allowedRoles={['admin', 'tenant']} />}>
               <Route path="/payments" element={<Payments />} />
             </Route>
             
