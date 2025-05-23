@@ -9,7 +9,7 @@ export function Footer() {
         <div className="flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center">
             <Building2 className="h-6 w-6" />
-            <span className="ml-2 text-lg font-bold">PropertyPortal</span>
+            <span className="ml-2 text-lg font-bold">TenantPortal</span>
           </div>
           
           <div className="mt-4 md:mt-0">
@@ -27,7 +27,7 @@ export function Footer() {
           </div>
         </div>
         <div className="mt-4 text-center md:text-left text-sm text-gray-300">
-          © {new Date().getFullYear()} PropertyPortal. All rights reserved.
+          © {new Date().getFullYear()} TenantPortal. All rights reserved.
         </div>
       </div>
     </footer>

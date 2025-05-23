@@ -28,7 +28,7 @@ export function Navbar() {
           <div className="flex items-center">
             <Link to="/" className="flex-shrink-0 flex items-center">
               <Building2 className="h-8 w-8" />
-              <span className="ml-2 text-xl font-bold">PropertyPortal</span>
+              <span className="ml-2 text-xl font-bold">TenantPortal</span>
             </Link>
           </div>
           
