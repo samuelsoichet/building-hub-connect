@@ -24,6 +24,13 @@ const getAppUrl = () => {
   return origin;
 };
 
+// Simple email validation function
+const isValidEmail = (email: string): boolean => {
+  // Basic email validation regex
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [email, setEmail] = useState<string | null>(null);
@@ -104,18 +111,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string) => {
     try {
+      // Validate email format on the client side before sending to Supabase
+      if (!isValidEmail(email)) {
+        toast.error("Please enter a valid email address");
+        return { error: "Invalid email format" };
+      }
+      
+      // Clean up the email by trimming whitespace
+      const cleanEmail = email.trim();
+      
       const appUrl = getAppUrl();
       const redirectTo = `${appUrl}/work-orders`;
       console.log(`Setting redirect URL to: ${redirectTo}`);
       
       const { data, error } = await supabase.auth.signInWithOtp({
-        email,
+        email: cleanEmail,
         options: {
           emailRedirectTo: redirectTo,
         }
       });
       
       if (error) {
+        console.error("Login error details:", error);
         toast.error(error.message);
         return { error: error.message };
       }
@@ -123,8 +140,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.success("Check your email for the login link");
       return {};
     } catch (error: any) {
-      toast.error("Failed to send login link");
       console.error("Login error:", error);
+      toast.error("Failed to send login link");
       return { error: error.message };
     }
   };
