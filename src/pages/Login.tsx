@@ -27,6 +27,7 @@ const Login = () => {
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("Form submitted with email:", email);
     
     // Trim email to remove any whitespace
     const trimmedEmail = email.trim();
@@ -108,6 +109,14 @@ const Login = () => {
                     type="submit" 
                     className="w-full" 
                     disabled={isLoading}
+                    onClick={(e) => {
+                      console.log("Button clicked directly");
+                      if (!isLoading) {
+                        // This is a backup in case the form submit event is not firing
+                        // We'll still use the form's onSubmit as the primary handler
+                        handleEmailSubmit(e);
+                      }
+                    }}
                   >
                     {isLoading ? (
                       <>

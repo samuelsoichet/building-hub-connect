@@ -130,8 +130,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string) => {
     try {
+      console.log("Starting login process for:", email);
       const redirectTo = `${getAppUrl()}/work-orders`;
       console.log(`Setting redirect URL to: ${redirectTo}`);
+      
+      // Use signInWithOtp explicitly with all parameters logged
+      console.log("Calling supabase.auth.signInWithOtp with:", {
+        email: email.trim(),
+        options: {
+          emailRedirectTo: redirectTo,
+          shouldCreateUser: true,
+        }
+      });
       
       const { data, error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
