@@ -1,3 +1,4 @@
+
 import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
@@ -119,7 +120,7 @@ const Payments = () => {
           <p className="mb-2">To send a payment via Venmo:</p>
           <ol className="list-decimal pl-5 space-y-1">
             <li>Open your Venmo app</li>
-            <li>Search for username: <span className="font-semibold">@PropertyPortal</span></li>
+            <li>Search for username: <span className="font-semibold">@BrooklynStreet</span></li>
             <li>Enter the exact amount: <span className="font-semibold">${paymentAmount}</span></li>
             <li>In the description, include your account number or suite number</li>
             <li>Tap "Pay"</li>
