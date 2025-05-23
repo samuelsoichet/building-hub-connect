@@ -14,9 +14,9 @@ verify_jwt = true
 # Enable email/password auth
 enable_signup = true
 # Use custom email templates
-enable_confirm_signup = true
-double_confirm_changes = true
-enable_confirmations = true
+enable_confirm_signup = false
+double_confirm_changes = false
+enable_confirmations = false
 
 [auth.external.apple]
 enabled = false

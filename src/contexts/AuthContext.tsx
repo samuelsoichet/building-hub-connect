@@ -15,6 +15,20 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Get the application URL based on current environment
+const getAppUrl = () => {
+  // Get the current hostname (domain)
+  const hostname = window.location.hostname;
+  
+  // If we're on localhost, use the full origin (e.g., http://localhost:3000)
+  if (hostname === 'localhost') {
+    return window.location.origin;
+  }
+  
+  // For deployed environments, ensure we use the current protocol and hostname
+  return `${window.location.protocol}//${hostname}`;
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [email, setEmail] = useState<string | null>(null);
@@ -69,10 +83,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string) => {
     try {
+      const redirectTo = `${getAppUrl()}/work-orders`;
+      console.log(`Setting redirect URL to: ${redirectTo}`);
+      
       const { data, error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: window.location.origin + '/work-orders',
+          emailRedirectTo: redirectTo,
         }
       });
       
