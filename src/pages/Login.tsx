@@ -10,10 +10,12 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [isEmailSubmitted, setIsEmailSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -25,14 +27,35 @@ const Login = () => {
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !email.includes('@')) {
+    
+    // Trim email to remove any whitespace
+    const trimmedEmail = email.trim();
+    
+    if (!trimmedEmail) {
+      toast.error("Please enter an email address");
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
       toast.error("Please enter a valid email address");
       return;
     }
 
-    const { error } = await login(email);
-    if (!error) {
-      setIsEmailSubmitted(true);
+    setIsLoading(true);
+
+    try {
+      const { error } = await login(trimmedEmail);
+      if (!error) {
+        setIsEmailSubmitted(true);
+        toast.success("Login link sent! Please check your email");
+      }
+    } catch (err: any) {
+      console.error("Login error:", err);
+      toast.error(err.message || "Failed to send login link");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -72,10 +95,24 @@ const Login = () => {
                       placeholder="your.email@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      disabled={isLoading}
                       required
                     />
                   </div>
-                  <Button type="submit" className="w-full">Send Login Link</Button>
+                  <Button 
+                    type="submit" 
+                    className="w-full" 
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      "Send Login Link"
+                    )}
+                  </Button>
                 </form>
               ) : (
                 <div className="space-y-4">
@@ -89,6 +126,7 @@ const Login = () => {
                     variant="link" 
                     className="w-full" 
                     onClick={() => setIsEmailSubmitted(false)}
+                    disabled={isLoading}
                   >
                     Use a different email
                   </Button>

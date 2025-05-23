@@ -34,11 +34,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [email, setEmail] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [isInitializing, setIsInitializing] = useState<boolean>(true);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
+    // Check if we have a hash with auth data in the URL
+    const handleHashParams = async () => {
+      const hash = window.location.hash;
+      if (hash && hash.includes('access_token')) {
+        // Clear the hash to prevent re-authentication issues on refresh
+        window.location.hash = '';
+        
+        // Let Supabase handle the session from the hash
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Error processing auth redirect:', error);
+          toast.error('Authentication failed. Please try again.');
+          return;
+        }
+        
+        // Successfully authenticated, redirect to work orders page
+        if (data.session) {
+          window.location.href = `${window.location.origin}/work-orders`;
+          return;
+        }
+      }
+    };
+
+    // Handle hash params first
+    handleHashParams();
+
+    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
+        console.info(`Auth state changed: ${event}`);
+        
         if (currentSession) {
           setIsAuthenticated(true);
           setEmail(currentSession.user?.email || null);
@@ -57,10 +86,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSession(null);
           localStorage.removeItem('auth');
         }
+        
+        // Set initialization to false once we've processed the auth state
+        setIsInitializing(false);
       }
     );
 
-    // THEN check for existing session
+    // Check for existing session
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
       if (currentSession) {
         setIsAuthenticated(true);
@@ -74,6 +106,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: currentSession.user?.email 
         }));
       }
+      
+      // Set initialization to false once we've checked for an existing session
+      setIsInitializing(false);
     });
 
     return () => {
@@ -87,22 +122,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log(`Setting redirect URL to: ${redirectTo}`);
       
       const { data, error } = await supabase.auth.signInWithOtp({
-        email,
+        email: email.trim(),
         options: {
           emailRedirectTo: redirectTo,
         }
       });
       
       if (error) {
+        console.error('Login error:', error);
         toast.error(error.message);
         return { error: error.message };
       }
       
-      toast.success("Check your email for the login link");
       return {};
     } catch (error: any) {
-      toast.error("Failed to send login link");
       console.error("Login error:", error);
+      toast.error("Failed to send login link");
       return { error: error.message };
     }
   };
@@ -116,6 +151,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Logout error:", error);
     }
   };
+
+  // Don't render children until we've initialized auth
+  if (isInitializing) {
+    return <div className="flex items-center justify-center min-h-screen">
+      <div className="animate-spin h-8 w-8 border-4 border-primary rounded-full border-t-transparent"></div>
+    </div>;
+  }
 
   return (
     <AuthContext.Provider value={{ isAuthenticated, email, user, session, login, logout }}>

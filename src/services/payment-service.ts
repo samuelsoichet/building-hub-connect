@@ -37,6 +37,7 @@ export async function checkPaymentStatus(sessionId: string, paymentId: string) {
 
 export async function fetchPaymentHistory() {
   try {
+    // This will automatically use the authenticated user's session
     const { data, error } = await supabase
       .from('payments')
       .select('*')
@@ -55,6 +56,7 @@ export async function fetchPaymentHistory() {
 
 export async function fetchTenantBalance() {
   try {
+    // This will automatically use the authenticated user's session
     const { data, error } = await supabase
       .from('tenant_balances')
       .select('*')

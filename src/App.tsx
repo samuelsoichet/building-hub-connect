@@ -26,11 +26,11 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/documents" element={<Documents />} />
-            <Route path="/payments" element={<Payments />} />
             
             {/* Protected Routes */}
             <Route element={<ProtectedRoute />}>
               <Route path="/work-orders" element={<WorkOrders />} />
+              <Route path="/payments" element={<Payments />} />
             </Route>
             
             <Route path="*" element={<NotFound />} />
