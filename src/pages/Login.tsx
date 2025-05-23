@@ -46,8 +46,13 @@ const Login = () => {
     setIsLoading(true);
 
     try {
+      console.log("Attempting login with email:", trimmedEmail);
       const { error } = await login(trimmedEmail);
-      if (!error) {
+      
+      if (error) {
+        console.error("Login error:", error);
+        toast.error(error || "Failed to send login link");
+      } else {
         setIsEmailSubmitted(true);
         toast.success("Login link sent! Please check your email");
       }

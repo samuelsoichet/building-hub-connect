@@ -21,7 +21,7 @@ const getAppUrl = () => {
   const hostname = window.location.hostname;
   
   // If we're on localhost, use the full origin (e.g., http://localhost:3000)
-  if (hostname === 'localhost') {
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return window.location.origin;
   }
   
@@ -41,21 +41,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const handleHashParams = async () => {
       const hash = window.location.hash;
       if (hash && hash.includes('access_token')) {
+        console.log("Found access token in URL hash");
+        
         // Clear the hash to prevent re-authentication issues on refresh
         window.location.hash = '';
         
-        // Let Supabase handle the session from the hash
-        const { data, error } = await supabase.auth.getSession();
-        if (error) {
-          console.error('Error processing auth redirect:', error);
-          toast.error('Authentication failed. Please try again.');
-          return;
-        }
-        
-        // Successfully authenticated, redirect to work orders page
-        if (data.session) {
-          window.location.href = `${window.location.origin}/work-orders`;
-          return;
+        try {
+          // Let Supabase handle the session from the hash
+          const { data, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            console.error('Error processing auth redirect:', error);
+            toast.error('Authentication failed. Please try again.');
+            return;
+          }
+          
+          // Successfully authenticated, redirect to work orders page
+          if (data.session) {
+            console.log("Successfully authenticated with session", data.session);
+            window.location.href = `${window.location.origin}/work-orders`;
+            return;
+          }
+        } catch (err) {
+          console.error("Error processing hash params:", err);
+          toast.error("Authentication failed. Please try again.");
         }
       }
     };
@@ -95,6 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Check for existing session
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
       if (currentSession) {
+        console.log("Found existing session", currentSession);
         setIsAuthenticated(true);
         setEmail(currentSession.user?.email || null);
         setUser(currentSession.user);
@@ -105,6 +115,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isAuthenticated: true, 
           email: currentSession.user?.email 
         }));
+      } else {
+        console.log("No existing session found");
       }
       
       // Set initialization to false once we've checked for an existing session
@@ -125,20 +137,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: email.trim(),
         options: {
           emailRedirectTo: redirectTo,
+          shouldCreateUser: true,
         }
       });
       
       if (error) {
         console.error('Login error:', error);
-        toast.error(error.message);
         return { error: error.message };
       }
       
+      console.log("OTP sign-in initiated successfully", data);
       return {};
     } catch (error: any) {
       console.error("Login error:", error);
-      toast.error("Failed to send login link");
-      return { error: error.message };
+      return { error: error.message || "Failed to send login link" };
     }
   };
 
