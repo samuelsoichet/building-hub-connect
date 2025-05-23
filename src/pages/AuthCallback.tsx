@@ -27,8 +27,14 @@ const AuthCallback = () => {
         } 
         // If hash parameters exist (implicit flow)
         else if (window.location.hash && window.location.hash.includes('access_token=')) {
-          // Supabase handles this automatically via the onAuthStateChange listener
-          console.log("Processing hash authentication parameters");
+          // Process the hash parameters
+          const { data, error } = await supabase.auth.getSessionFromUrl();
+          
+          if (error) {
+            throw error;
+          }
+          
+          console.log("Successfully authenticated via hash params", data.session);
           toast.success("Authentication successful!");
           setRedirectTo('/work-orders');
         }
