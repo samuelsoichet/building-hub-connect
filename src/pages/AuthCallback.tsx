@@ -28,7 +28,9 @@ const AuthCallback = () => {
         // If hash parameters exist (implicit flow)
         else if (window.location.hash && window.location.hash.includes('access_token=')) {
           // Process the hash parameters
-          const { data, error } = await supabase.auth.getSessionFromUrl();
+          const { data, error } = await supabase.auth.exchangeCodeForSession(
+            window.location.hash
+          );
           
           if (error) {
             throw error;
