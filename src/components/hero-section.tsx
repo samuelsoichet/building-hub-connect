@@ -33,6 +33,11 @@ export function HeroSection() {
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg" className="border-white text-white hover:bg-navy-700">
+              <Link to="/documents">
+                Document Repository
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="border-white text-white hover:bg-navy-700">
               <Link to="/payments">
                 Make a Payment
               </Link>
