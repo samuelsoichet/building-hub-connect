@@ -37,14 +37,16 @@ const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
 });
 
+// Fix: Change the termsAccepted validation to accept boolean and validate it separately
 const registerSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
   role: z.enum(["tenant", "admin", "maintenance"], {
     required_error: "Please select a role",
   }),
-  termsAccepted: z.literal(true, {
-    errorMap: () => ({ message: "You must accept the terms and conditions" }),
-  }),
+  termsAccepted: z.boolean()
+}).refine((data) => data.termsAccepted === true, {
+  message: "You must accept the terms and conditions",
+  path: ["termsAccepted"]
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
@@ -65,7 +67,7 @@ const Login = () => {
     },
   });
 
-  // Register form
+  // Register form - fix: initialize termsAccepted as boolean false
   const registerForm = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
