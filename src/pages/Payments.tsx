@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CreditCard, Calendar, Check, Clock, History, Smartphone, Building, Banknote } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 
 const Payments = () => {
   const [paymentAmount, setPaymentAmount] = useState("2500.00");
@@ -24,6 +25,16 @@ const Payments = () => {
   const [accountNumber, setAccountNumber] = useState("");
   const [routingNumber, setRoutingNumber] = useState("");
   const [wireTransferType, setWireTransferType] = useState("domestic");
+  
+  // Calculate the credit card fee
+  const calculateCreditCardFee = (amount: string) => {
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount)) return "0.00";
+    return (numAmount * 0.035).toFixed(2);
+  };
+  
+  const creditCardFee = calculateCreditCardFee(paymentAmount);
+  const totalWithFee = (parseFloat(paymentAmount) + parseFloat(creditCardFee)).toFixed(2);
   
   // Mock payment history data
   const paymentHistory = [
@@ -231,6 +242,7 @@ const Payments = () => {
                         <TabsTrigger value="card">
                           <CreditCard className="h-4 w-4 mr-2" />
                           Credit Card
+                          <Badge variant="destructive" className="ml-1 text-[10px]">+3.5%</Badge>
                         </TabsTrigger>
                         <TabsTrigger value="zelle">
                           <Smartphone className="h-4 w-4 mr-2" />
@@ -251,6 +263,25 @@ const Payments = () => {
                       </TabsList>
                       
                       <TabsContent value="card" className="space-y-4 pt-4">
+                        <div className="rounded-md bg-yellow-50 p-4 mb-4">
+                          <div className="flex">
+                            <div className="flex-shrink-0">
+                              <CreditCard className="h-5 w-5 text-yellow-400" aria-hidden="true" />
+                            </div>
+                            <div className="ml-3">
+                              <h3 className="text-sm font-medium text-yellow-800">Credit Card Fee Notice</h3>
+                              <div className="mt-2 text-sm text-yellow-700">
+                                <p>A 3.5% processing fee will be added to all credit card transactions.</p>
+                                <div className="mt-2 font-medium">
+                                  <p>Payment Amount: ${paymentAmount}</p>
+                                  <p>Processing Fee (3.5%): ${creditCardFee}</p>
+                                  <p>Total Amount: ${totalWithFee}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
                         <div className="space-y-2">
                           <Label htmlFor="card-number">Card Number</Label>
                           <Input id="card-number" placeholder="•••• •••• •••• ••••" />
