@@ -96,6 +96,8 @@ const Login = () => {
       } else {
         setIsEmailSubmitted(true);
         toast.success("Login link sent! Please check your email");
+        // Add clear instructions for users
+        toast.info("Check your email inbox and spam folder for the login link");
       }
     } catch (err: any) {
       console.error("Login error:", err);

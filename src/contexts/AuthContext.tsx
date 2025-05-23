@@ -64,90 +64,110 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    // Check if we have a hash with auth data in the URL
-    const handleHashParams = async () => {
-      const hash = window.location.hash;
-      if (hash && hash.includes('access_token')) {
-        console.log("Found access token in URL hash");
-        
-        // Clear the hash to prevent re-authentication issues on refresh
-        window.location.hash = '';
+    // Process auth tokens from URL (magic link handler)
+    const processAuthTokens = async () => {
+      // Check if we have auth-related parameters in the URL
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      
+      // Check for "#access_token=" or "?code=" (handles both hash and query parameters)
+      const hasAuthParams = 
+        window.location.hash.includes('access_token=') || 
+        window.location.search.includes('code=');
+      
+      if (hasAuthParams) {
+        console.log("Found authentication parameters in URL");
         
         try {
-          // Let Supabase handle the session from the hash
-          const { data, error } = await supabase.auth.getSession();
-          
-          if (error) {
-            console.error('Error processing auth redirect:', error);
-            toast.error('Authentication failed. Please try again.');
-            return;
-          }
-          
-          // Successfully authenticated, redirect to work orders page
-          if (data.session) {
-            console.log("Successfully authenticated with session", data.session);
+          // Exchange the code for a session if using PKCE flow
+          if (window.location.search.includes('code=')) {
+            const { data, error } = await supabase.auth.exchangeCodeForSession(
+              window.location.search
+            );
             
-            // Fetch user role before redirecting
-            const userRole = await fetchUserRole(data.session.user.id);
-            
-            // Redirect based on role
-            if (userRole === 'admin') {
-              window.location.href = `${window.location.origin}/work-orders`;
-            } else if (userRole === 'maintenance') {
-              window.location.href = `${window.location.origin}/work-orders`;
-            } else {
-              // Default tenant role
-              window.location.href = `${window.location.origin}/work-orders`;
+            if (error) {
+              throw error;
             }
-            return;
+            
+            if (data.session) {
+              console.log("Successfully authenticated with code", data.session);
+              // Session will be handled by the onAuthStateChange listener
+              
+              // Clean up the URL
+              window.history.replaceState({}, document.title, window.location.pathname);
+            }
+          } 
+          // If using implicit grant (access_token in hash)
+          else if (window.location.hash) {
+            // Let Supabase auth handle the session extraction
+            const { data, error } = await supabase.auth.getSession();
+            
+            if (error) {
+              throw error;
+            }
+            
+            if (data.session) {
+              console.log("Successfully authenticated via hash params", data.session);
+              // Clean up the URL
+              window.history.replaceState({}, document.title, window.location.pathname);
+            }
           }
+          
+          // Redirect to work orders page after successful authentication
+          setTimeout(() => {
+            window.location.href = `${window.location.origin}/work-orders`;
+          }, 500);
+          
+          return true;
         } catch (err) {
-          console.error("Error processing hash params:", err);
+          console.error("Error processing auth tokens:", err);
           toast.error("Authentication failed. Please try again.");
+          return false;
         }
       }
+      
+      return false;
     };
 
-    // Handle hash params first
-    handleHashParams();
-
     // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
-        console.info(`Auth state changed: ${event}`);
-        
-        if (currentSession) {
-          setIsAuthenticated(true);
-          setEmail(currentSession.user?.email || null);
-          setUser(currentSession.user);
-          setSession(currentSession);
+    const setupAuthStateListener = () => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (event, currentSession) => {
+          console.info(`Auth state changed: ${event}`);
+          
+          if (currentSession) {
+            setIsAuthenticated(true);
+            setEmail(currentSession.user?.email || null);
+            setUser(currentSession.user);
+            setSession(currentSession);
 
-          // Fetch user role
-          const userRole = await fetchUserRole(currentSession.user.id);
-          setRole(userRole);
+            // Fetch user role
+            const userRole = await fetchUserRole(currentSession.user.id);
+            setRole(userRole);
 
-          // Store user/session data in localStorage
-          localStorage.setItem('auth', JSON.stringify({ 
-            isAuthenticated: true, 
-            email: currentSession.user?.email,
-            role: userRole
-          }));
-        } else {
-          setIsAuthenticated(false);
-          setEmail(null);
-          setUser(null);
-          setSession(null);
-          setRole(null);
-          localStorage.removeItem('auth');
+            // Store user/session data in localStorage
+            localStorage.setItem('auth', JSON.stringify({ 
+              isAuthenticated: true, 
+              email: currentSession.user?.email,
+              role: userRole
+            }));
+          } else {
+            setIsAuthenticated(false);
+            setEmail(null);
+            setUser(null);
+            setSession(null);
+            setRole(null);
+            localStorage.removeItem('auth');
+          }
         }
-        
-        // Set initialization to false once we've processed the auth state
-        setIsInitializing(false);
-      }
-    );
+      );
+      
+      return subscription;
+    };
 
     // Check for existing session
-    supabase.auth.getSession().then(async ({ data: { session: currentSession } }) => {
+    const checkExistingSession = async () => {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      
       if (currentSession) {
         console.log("Found existing session", currentSession);
         setIsAuthenticated(true);
@@ -168,10 +188,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         console.log("No existing session found");
       }
-      
-      // Set initialization to false once we've checked for an existing session
-      setIsInitializing(false);
-    });
+    };
+    
+    const initAuth = async () => {
+      try {
+        // First, try to process any auth tokens in the URL
+        const didProcessTokens = await processAuthTokens();
+        
+        // If we didn't process tokens, check for an existing session
+        if (!didProcessTokens) {
+          await checkExistingSession();
+        }
+        
+        // Set initialization to false once we've completed auth checks
+        setIsInitializing(false);
+      } catch (error) {
+        console.error("Error during auth initialization:", error);
+        setIsInitializing(false);
+      }
+    };
+
+    // Set up auth listener first
+    const subscription = setupAuthStateListener();
+    
+    // Then initialize auth
+    initAuth();
 
     return () => {
       subscription.unsubscribe();

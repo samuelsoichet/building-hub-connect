@@ -12,6 +12,7 @@ import Documents from "./pages/Documents";
 import Payments from "./pages/Payments";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
+import AuthCallback from "./pages/AuthCallback";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/documents" element={<Documents />} />
             
             {/* Protected Routes for all authenticated users */}
