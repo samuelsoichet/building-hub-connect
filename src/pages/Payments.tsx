@@ -8,13 +8,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CreditCard, Calendar, Check, Clock, History } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CreditCard, Calendar, Check, Clock, History, Smartphone, Building, Banknote } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 const Payments = () => {
   const [paymentAmount, setPaymentAmount] = useState("2500.00");
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentSubmitted, setPaymentSubmitted] = useState(false);
+  const [venmoUsername, setVenmoUsername] = useState("");
+  const [zelleEmail, setZelleEmail] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [routingNumber, setRoutingNumber] = useState("");
+  const [wireTransferType, setWireTransferType] = useState("domestic");
   
   // Mock payment history data
   const paymentHistory = [
@@ -73,6 +82,110 @@ const Payments = () => {
     // In a real app, this would process the payment through a payment gateway
     console.log("Payment submitted:", { amount: paymentAmount, date: paymentDate });
     setPaymentSubmitted(true);
+    toast.success("Payment has been successfully submitted");
+  };
+
+  // Display instructions for a specific payment method
+  const renderPaymentInstructions = (method: string) => {
+    const instructions = {
+      zelle: (
+        <div className="border rounded-lg p-4 bg-blue-50 mt-4">
+          <h3 className="text-lg font-medium mb-2">Zelle Payment Instructions</h3>
+          <p className="mb-2">To send a payment via Zelle:</p>
+          <ol className="list-decimal pl-5 space-y-1">
+            <li>Open your banking app that offers Zelle</li>
+            <li>Add recipient using: <span className="font-semibold">payments@propertyportal.com</span></li>
+            <li>Enter the exact amount: <span className="font-semibold">${paymentAmount}</span></li>
+            <li>In the memo field, include your account number or suite number</li>
+            <li>Complete the payment in your banking app</li>
+          </ol>
+          <p className="mt-2 text-sm">Once your payment is sent, please enter the Zelle email you used below for our records.</p>
+        </div>
+      ),
+      venmo: (
+        <div className="border rounded-lg p-4 bg-green-50 mt-4">
+          <h3 className="text-lg font-medium mb-2">Venmo Payment Instructions</h3>
+          <p className="mb-2">To send a payment via Venmo:</p>
+          <ol className="list-decimal pl-5 space-y-1">
+            <li>Open your Venmo app</li>
+            <li>Search for username: <span className="font-semibold">@PropertyPortal</span></li>
+            <li>Enter the exact amount: <span className="font-semibold">${paymentAmount}</span></li>
+            <li>In the description, include your account number or suite number</li>
+            <li>Tap "Pay"</li>
+          </ol>
+          <p className="mt-2 text-sm">After sending payment, please enter your Venmo username below for our records.</p>
+        </div>
+      ),
+      ach: (
+        <div className="border rounded-lg p-4 bg-gray-50 mt-4">
+          <h3 className="text-lg font-medium mb-2">ACH Transfer Instructions</h3>
+          <p className="mb-2">To send a payment via ACH transfer, use the following details:</p>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-3">
+            <div className="text-sm">Bank Name:</div>
+            <div className="font-medium">First National Bank</div>
+            <div className="text-sm">Account Name:</div>
+            <div className="font-medium">Property Portal Holdings LLC</div>
+            <div className="text-sm">Routing Number:</div>
+            <div className="font-medium">021000021</div>
+            <div className="text-sm">Account Number:</div>
+            <div className="font-medium">9876543210</div>
+            <div className="text-sm">Account Type:</div>
+            <div className="font-medium">Business Checking</div>
+          </div>
+          <p className="mt-4 text-sm">Please include your account/suite number in the memo field.</p>
+        </div>
+      ),
+      wire: (
+        <div className="border rounded-lg p-4 bg-amber-50 mt-4">
+          <h3 className="text-lg font-medium mb-2">Wire Transfer Instructions</h3>
+          <p className="mb-2">To send a payment via wire transfer, use the following details:</p>
+          
+          <RadioGroup 
+            value={wireTransferType}
+            onValueChange={(value) => setWireTransferType(value)} 
+            className="flex gap-4 my-3"
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="domestic" id="domestic"/>
+              <Label htmlFor="domestic">Domestic Wire</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="international" id="international"/>
+              <Label htmlFor="international">International Wire</Label>
+            </div>
+          </RadioGroup>
+          
+          {wireTransferType === "domestic" ? (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-3">
+              <div className="text-sm">Bank Name:</div>
+              <div className="font-medium">First National Bank</div>
+              <div className="text-sm">Account Name:</div>
+              <div className="font-medium">Property Portal Holdings LLC</div>
+              <div className="text-sm">Routing (ABA) Number:</div>
+              <div className="font-medium">021000021</div>
+              <div className="text-sm">Account Number:</div>
+              <div className="font-medium">9876543210</div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-3">
+              <div className="text-sm">Bank Name:</div>
+              <div className="font-medium">First National Bank</div>
+              <div className="text-sm">Account Name:</div>
+              <div className="font-medium">Property Portal Holdings LLC</div>
+              <div className="text-sm">SWIFT Code:</div>
+              <div className="font-medium">FNBCUS33</div>
+              <div className="text-sm">Account Number (IBAN):</div>
+              <div className="font-medium">US98765432109876543210</div>
+              <div className="text-sm">Bank Address:</div>
+              <div className="font-medium">123 Finance St, New York, NY 10001</div>
+            </div>
+          )}
+          <p className="mt-4 text-sm italic">Please include your account/suite number in the wire reference field.</p>
+        </div>
+      )
+    };
+    
+    return instructions[method as keyof typeof instructions];
   };
 
   return (
@@ -114,10 +227,27 @@ const Payments = () => {
                 ) : (
                   <form onSubmit={handleSubmitPayment}>
                     <Tabs defaultValue="card" className="w-full">
-                      <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="card">Credit Card</TabsTrigger>
-                        <TabsTrigger value="bank">Bank Account</TabsTrigger>
-                        <TabsTrigger value="other">Other Methods</TabsTrigger>
+                      <TabsList className="grid w-full grid-cols-5">
+                        <TabsTrigger value="card">
+                          <CreditCard className="h-4 w-4 mr-2" />
+                          Credit Card
+                        </TabsTrigger>
+                        <TabsTrigger value="zelle">
+                          <Smartphone className="h-4 w-4 mr-2" />
+                          Zelle
+                        </TabsTrigger>
+                        <TabsTrigger value="venmo">
+                          <Smartphone className="h-4 w-4 mr-2" />
+                          Venmo
+                        </TabsTrigger>
+                        <TabsTrigger value="ach">
+                          <Building className="h-4 w-4 mr-2" />
+                          ACH Transfer
+                        </TabsTrigger>
+                        <TabsTrigger value="wire">
+                          <Banknote className="h-4 w-4 mr-2" />
+                          Wire Transfer
+                        </TabsTrigger>
                       </TabsList>
                       
                       <TabsContent value="card" className="space-y-4 pt-4">
@@ -143,27 +273,98 @@ const Payments = () => {
                         </div>
                       </TabsContent>
                       
-                      <TabsContent value="bank" className="space-y-4 pt-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="bank-name">Bank Name</Label>
-                          <Input id="bank-name" placeholder="Enter your bank name" />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="routing-number">Routing Number</Label>
-                          <Input id="routing-number" placeholder="9 digits" />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="account-number">Account Number</Label>
-                          <Input id="account-number" placeholder="Enter account number" />
+                      <TabsContent value="zelle" className="space-y-4 pt-4">
+                        {renderPaymentInstructions("zelle")}
+                        <div className="space-y-2 mt-4">
+                          <Label htmlFor="zelle-email">Your Zelle Email/Phone</Label>
+                          <Input 
+                            id="zelle-email" 
+                            placeholder="email@example.com" 
+                            value={zelleEmail}
+                            onChange={(e) => setZelleEmail(e.target.value)}
+                          />
+                          <p className="text-sm text-gray-500 mt-1">
+                            This helps us track your payment in our system
+                          </p>
                         </div>
                       </TabsContent>
                       
-                      <TabsContent value="other" className="pt-4">
-                        <p className="text-center py-4">
-                          Other payment methods are coming soon. Please use credit card or bank account options for now.
-                        </p>
+                      <TabsContent value="venmo" className="space-y-4 pt-4">
+                        {renderPaymentInstructions("venmo")}
+                        <div className="space-y-2 mt-4">
+                          <Label htmlFor="venmo-username">Your Venmo Username</Label>
+                          <Input 
+                            id="venmo-username" 
+                            placeholder="@username" 
+                            value={venmoUsername}
+                            onChange={(e) => setVenmoUsername(e.target.value)}
+                          />
+                          <p className="text-sm text-gray-500 mt-1">
+                            This helps us track your payment in our system
+                          </p>
+                        </div>
+                      </TabsContent>
+                      
+                      <TabsContent value="ach" className="space-y-4 pt-4">
+                        {renderPaymentInstructions("ach")}
+                        <div className="space-y-4 mt-4 border-t pt-4">
+                          <p className="font-medium">Record your ACH transfer details</p>
+                          <div className="space-y-2">
+                            <Label htmlFor="bank-name">Your Bank Name</Label>
+                            <Input 
+                              id="bank-name" 
+                              placeholder="Enter your bank name" 
+                              value={bankName}
+                              onChange={(e) => setBankName(e.target.value)}
+                            />
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="routing-number">Your Routing Number</Label>
+                              <Input 
+                                id="routing-number" 
+                                placeholder="9 digits" 
+                                value={routingNumber}
+                                onChange={(e) => setRoutingNumber(e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="account-number">Last 4 of Account</Label>
+                              <Input 
+                                id="account-number" 
+                                placeholder="Last 4 digits" 
+                                value={accountNumber}
+                                onChange={(e) => setAccountNumber(e.target.value)}
+                                maxLength={4}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </TabsContent>
+                      
+                      <TabsContent value="wire" className="pt-4">
+                        {renderPaymentInstructions("wire")}
+                        <div className="space-y-4 mt-4 border-t pt-4">
+                          <p className="font-medium">Record your wire transfer details</p>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="wire-bank">Your Bank Name</Label>
+                              <Input id="wire-bank" placeholder="Enter your bank name" />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="wire-date">Transfer Date</Label>
+                              <Input id="wire-date" type="date" defaultValue={paymentDate} />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="wire-reference">Reference/Confirmation Number</Label>
+                            <Input id="wire-reference" placeholder="Enter reference or confirmation number" />
+                            <p className="text-sm text-gray-500 mt-1">
+                              This helps us track your payment in our system
+                            </p>
+                          </div>
+                        </div>
                       </TabsContent>
                     </Tabs>
                     
