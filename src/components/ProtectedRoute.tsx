@@ -1,6 +1,6 @@
 
 import { useAuth } from "@/contexts/AuthContext";
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { useEffect } from "react";
 
@@ -10,6 +10,7 @@ interface ProtectedRouteProps {
 
 export const ProtectedRoute = ({ redirectTo = "/login" }: ProtectedRouteProps) => {
   const { isAuthenticated } = useAuth();
+  const location = useLocation();
   
   useEffect(() => {
     if (!isAuthenticated) {
@@ -17,5 +18,7 @@ export const ProtectedRoute = ({ redirectTo = "/login" }: ProtectedRouteProps) =
     }
   }, [isAuthenticated]);
 
-  return isAuthenticated ? <Outlet /> : <Navigate to={redirectTo} />;
+  return isAuthenticated ? 
+    <Outlet /> : 
+    <Navigate to={redirectTo} state={{ from: location }} replace />;
 };
