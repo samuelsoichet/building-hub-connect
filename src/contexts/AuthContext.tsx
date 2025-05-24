@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { Session, User } from '@supabase/supabase-js';
@@ -130,6 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Set up auth state listener
     const setupAuthStateListener = () => {
+      console.log("Setting up auth state listener");
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         async (event, currentSession) => {
           console.info(`Auth state changed: ${event}`);
@@ -166,6 +166,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Check for existing session
     const checkExistingSession = async () => {
+      console.log("Checking for existing session");
       const { data: { session: currentSession } } = await supabase.auth.getSession();
       
       if (currentSession) {

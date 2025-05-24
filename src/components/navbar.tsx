@@ -7,17 +7,25 @@ import {
   Menu,
   User,
 } from "lucide-react";
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { isAuthenticated, email, logout } = useAuth();
+  const { isAuthenticated, email, logout, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    // Log auth state for debugging
+    console.log("Navbar auth state:", { isAuthenticated, email, userId: user?.id });
+  }, [isAuthenticated, email, user]);
 
   const handleLogout = async () => {
     await logout();
+    toast.success("You have been logged out");
     navigate('/');
   };
 
@@ -46,8 +54,9 @@ export function Navbar() {
             
             {isAuthenticated ? (
               <div className="flex items-center space-x-4">
-                <div className="text-sm">
-                  <span className="opacity-75">Signed in as:</span> {email}
+                <div className="text-sm flex items-center">
+                  <User className="h-4 w-4 mr-1" />
+                  <span>{email}</span>
                 </div>
                 <Button variant="outline" size="sm" onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" /> Logout
@@ -90,8 +99,9 @@ export function Navbar() {
             
             {isAuthenticated ? (
               <>
-                <div className="px-3 py-2 text-sm">
-                  <span className="opacity-75">Signed in as:</span> {email}
+                <div className="px-3 py-2 text-sm flex items-center">
+                  <User className="h-4 w-4 mr-1" />
+                  <span>{email}</span>
                 </div>
                 <Button variant="outline" size="sm" className="w-full" onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" /> Logout

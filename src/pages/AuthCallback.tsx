@@ -11,8 +11,11 @@ const AuthCallback = () => {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
+        console.log("Processing auth callback. URL:", window.location.href);
+        
         // Check if we have a code in the URL (PKCE flow)
         if (window.location.search.includes('code=')) {
+          console.log("Found code parameter in URL, exchanging for session");
           const { data, error } = await supabase.auth.exchangeCodeForSession(
             window.location.search
           );
@@ -27,6 +30,8 @@ const AuthCallback = () => {
         } 
         // If hash parameters exist (implicit flow)
         else if (window.location.hash && window.location.hash.includes('access_token=')) {
+          console.log("Found hash parameters in URL, exchanging for session");
+          
           // Process the hash parameters
           const { data, error } = await supabase.auth.exchangeCodeForSession(
             window.location.hash
