@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,8 +11,10 @@ const AuthCallback = () => {
     const handleAuthCallback = async () => {
       try {
         console.log("Processing auth callback. URL:", window.location.href);
+        console.log("Search params:", window.location.search);
+        console.log("Hash params:", window.location.hash);
         
-        // Check if we have a code in the URL (PKCE flow)
+        // Check if we have a code in the URL (PKCE flow - used by magic links)
         if (window.location.search.includes('code=')) {
           console.log("Found code parameter in URL, exchanging for session");
           const { data, error } = await supabase.auth.exchangeCodeForSession(
@@ -21,6 +22,7 @@ const AuthCallback = () => {
           );
           
           if (error) {
+            console.error("Exchange code error:", error);
             throw error;
           }
           
@@ -28,27 +30,44 @@ const AuthCallback = () => {
           toast.success("Authentication successful!");
           setRedirectTo('/work-orders');
         } 
-        // If hash parameters exist (implicit flow)
+        // If hash parameters exist (implicit flow - older method)
         else if (window.location.hash && window.location.hash.includes('access_token=')) {
-          console.log("Found hash parameters in URL, exchanging for session");
+          console.log("Found hash parameters in URL");
           
-          // Process the hash parameters
-          const { data, error } = await supabase.auth.exchangeCodeForSession(
-            window.location.hash
-          );
+          // For hash-based auth, we just need to get the session - Supabase handles it automatically
+          const { data, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            console.error("Get session error:", error);
+            throw error;
+          }
+          
+          if (data.session) {
+            console.log("Successfully authenticated via hash params", data.session);
+            toast.success("Authentication successful!");
+            setRedirectTo('/work-orders');
+          } else {
+            throw new Error("No session found after hash authentication");
+          }
+        }
+        // Check if session already exists (e.g., from auto-confirm flow)
+        else {
+          console.log("No auth params in URL, checking for existing session");
+          const { data, error } = await supabase.auth.getSession();
           
           if (error) {
             throw error;
           }
           
-          console.log("Successfully authenticated via hash params", data.session);
-          toast.success("Authentication successful!");
-          setRedirectTo('/work-orders');
-        }
-        else {
-          console.warn("No authentication parameters found in URL");
-          toast.error("Authentication failed. No valid parameters found.");
-          setRedirectTo('/login');
+          if (data.session) {
+            console.log("Found existing session", data.session);
+            toast.success("Already logged in!");
+            setRedirectTo('/work-orders');
+          } else {
+            console.warn("No authentication parameters or session found");
+            toast.error("Authentication failed. Please try again.");
+            setRedirectTo('/login');
+          }
         }
       } catch (error) {
         console.error("Error processing authentication:", error);
