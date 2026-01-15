@@ -1,1 +1,13 @@
 project_id = "npgiplvhokbrdevzsojx"
+
+[functions.check-payment-status]
+verify_jwt = false
+
+[functions.create-checkout]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.send-work-order-email]
+verify_jwt = false
