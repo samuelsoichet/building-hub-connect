@@ -15,7 +15,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { createWorkOrder, fetchWorkOrders, getStatusInfo, getPriorityInfo } from "@/services/work-order-service";
-import type { WorkOrder, WorkOrderPriority } from "@/services/work-order-service";
+import type { WorkOrder, WorkOrderPriority } from "@/types/supabase-custom";
 
 const WorkOrders = () => {
   const navigate = useNavigate();
