@@ -64,67 +64,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     // Process auth tokens from URL (magic link handler)
+    // Only runs on /auth/callback route to avoid interfering with other pages
     const processAuthTokens = async () => {
-      // Check if we have auth-related parameters in the URL
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      // Only process auth tokens on the callback route
+      const isCallbackRoute = window.location.pathname === '/auth/callback';
       
       // Check for "#access_token=" or "?code=" (handles both hash and query parameters)
       const hasAuthParams = 
         window.location.hash.includes('access_token=') || 
         window.location.search.includes('code=');
       
-      if (hasAuthParams) {
-        console.log("Found authentication parameters in URL");
-        
-        try {
-          // Exchange the code for a session if using PKCE flow
-          if (window.location.search.includes('code=')) {
-            const { data, error } = await supabase.auth.exchangeCodeForSession(
-              window.location.search
-            );
-            
-            if (error) {
-              throw error;
-            }
-            
-            if (data.session) {
-              console.log("Successfully authenticated with code", data.session);
-              // Session will be handled by the onAuthStateChange listener
-              
-              // Clean up the URL
-              window.history.replaceState({}, document.title, window.location.pathname);
-            }
-          } 
-          // If using implicit grant (access_token in hash)
-          else if (window.location.hash) {
-            // Let Supabase auth handle the session extraction
-            const { data, error } = await supabase.auth.getSession();
-            
-            if (error) {
-              throw error;
-            }
-            
-            if (data.session) {
-              console.log("Successfully authenticated via hash params", data.session);
-              // Clean up the URL
-              window.history.replaceState({}, document.title, window.location.pathname);
-            }
-          }
-          
-          // Redirect to work orders page after successful authentication
-          setTimeout(() => {
-            window.location.href = `${window.location.origin}/work-orders`;
-          }, 500);
-          
-          return true;
-        } catch (err) {
-          console.error("Error processing auth tokens:", err);
-          toast.error("Authentication failed. Please try again.");
-          return false;
-        }
+      // Only process if we're on the callback route AND have auth params
+      if (!isCallbackRoute || !hasAuthParams) {
+        return false;
       }
       
-      return false;
+      console.log("Processing authentication on callback route");
+      
+      try {
+        // Exchange the code for a session if using PKCE flow
+        if (window.location.search.includes('code=')) {
+          const { data, error } = await supabase.auth.exchangeCodeForSession(
+            window.location.search
+          );
+          
+          if (error) {
+            throw error;
+          }
+          
+          if (data.session) {
+            console.log("Successfully authenticated with code", data.session);
+            // Clean up the URL - don't navigate, let AuthCallback handle it
+            window.history.replaceState({}, document.title, '/auth/callback');
+          }
+        } 
+        // If using implicit grant (access_token in hash)
+        else if (window.location.hash) {
+          // Let Supabase auth handle the session extraction
+          const { data, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            throw error;
+          }
+          
+          if (data.session) {
+            console.log("Successfully authenticated via hash params", data.session);
+            // Clean up the URL
+            window.history.replaceState({}, document.title, '/auth/callback');
+          }
+        }
+        
+        // Don't redirect here - let AuthCallback component handle the navigation
+        return true;
+      } catch (err) {
+        console.error("Error processing auth tokens:", err);
+        toast.error("Authentication failed. Please try again.");
+        return false;
+      }
     };
 
     // Set up auth state listener
