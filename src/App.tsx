@@ -8,6 +8,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import Index from "./pages/Index";
 import WorkOrders from "./pages/WorkOrders";
+import WorkOrderDetail from "./pages/WorkOrderDetail";
 import Documents from "./pages/Documents";
 import Payments from "./pages/Payments";
 import NotFound from "./pages/NotFound";
@@ -32,6 +33,7 @@ const App = () => (
             {/* Protected Routes for all authenticated users */}
             <Route element={<ProtectedRoute />}>
               <Route path="/work-orders" element={<WorkOrders />} />
+              <Route path="/work-orders/:id" element={<WorkOrderDetail />} />
             </Route>
             
             {/* Routes that require tenant role */}
