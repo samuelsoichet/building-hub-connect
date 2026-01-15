@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,6 +13,9 @@ import Payments from "./pages/Payments";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import AuthCallback from "./pages/AuthCallback";
+import AdminUsers from "./pages/AdminUsers";
+import Settings from "./pages/Settings";
+import MaintenanceDashboard from "./pages/MaintenanceDashboard";
 
 const queryClient = new QueryClient();
 
@@ -43,12 +45,17 @@ const App = () => (
             
             {/* Routes that require admin role */}
             <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
-              {/* Add admin-specific routes here */}
+              <Route path="/admin/users" element={<AdminUsers />} />
             </Route>
             
-            {/* Routes that require maintenance role */}
-            <Route element={<ProtectedRoute allowedRoles={['maintenance']} />}>
-              {/* Add maintenance-specific routes here */}
+            {/* Routes that require maintenance or admin role */}
+            <Route element={<ProtectedRoute allowedRoles={['maintenance', 'admin']} />}>
+              <Route path="/dashboard" element={<MaintenanceDashboard />} />
+            </Route>
+            
+            {/* Settings page for all authenticated users */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/settings" element={<Settings />} />
             </Route>
             
             {/* Routes for admins and tenants */}

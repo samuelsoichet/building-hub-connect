@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -8,6 +7,8 @@ import {
   Menu,
   User,
   LayoutDashboard,
+  Shield,
+  Settings,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
@@ -21,6 +22,7 @@ export function Navbar() {
   const location = useLocation();
 
   const isStaff = role === 'admin' || role === 'maintenance';
+  const isAdmin = role === 'admin';
 
   useEffect(() => {
     // Log auth state for debugging
@@ -66,6 +68,12 @@ export function Navbar() {
                 Dashboard
               </Link>
             )}
+            {isAdmin && (
+              <Link to="/admin/users" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-navy-700 transition-colors flex items-center">
+                <Shield className="h-4 w-4 mr-1" />
+                Admin
+              </Link>
+            )}
             <Link to="/work-orders" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-navy-700 transition-colors">
               Work Orders
             </Link>
@@ -83,6 +91,11 @@ export function Navbar() {
                   <span>{email}</span>
                   {getRoleBadge()}
                 </div>
+                <Button variant="ghost" size="sm" asChild className="text-white hover:bg-navy-700">
+                  <Link to="/settings">
+                    <Settings className="h-4 w-4" />
+                  </Link>
+                </Button>
                 <Button variant="outline" size="sm" onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" /> Logout
                 </Button>
@@ -118,6 +131,12 @@ export function Navbar() {
                 Dashboard
               </Link>
             )}
+            {isAdmin && (
+              <Link to="/admin/users" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-navy-700 transition-colors flex items-center">
+                <Shield className="h-4 w-4 mr-2" />
+                Admin
+              </Link>
+            )}
             <Link to="/work-orders" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-navy-700 transition-colors">
               Work Orders
             </Link>
@@ -135,6 +154,10 @@ export function Navbar() {
                   <span>{email}</span>
                   {getRoleBadge()}
                 </div>
+                <Link to="/settings" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-navy-700 transition-colors flex items-center">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Settings
+                </Link>
                 <Button variant="outline" size="sm" className="w-full" onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" /> Logout
                 </Button>
