@@ -1,11 +1,13 @@
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Building2,
   LogIn,
   LogOut,
   Menu,
   User,
+  LayoutDashboard,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
@@ -14,19 +16,35 @@ import { toast } from "sonner";
 
 export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { isAuthenticated, email, logout, user } = useAuth();
+  const { isAuthenticated, email, logout, user, role } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
+  const isStaff = role === 'admin' || role === 'maintenance';
+
   useEffect(() => {
     // Log auth state for debugging
-    console.log("Navbar auth state:", { isAuthenticated, email, userId: user?.id });
-  }, [isAuthenticated, email, user]);
+    console.log("Navbar auth state:", { isAuthenticated, email, userId: user?.id, role });
+  }, [isAuthenticated, email, user, role]);
 
   const handleLogout = async () => {
     await logout();
     toast.success("You have been logged out");
     navigate('/');
+  };
+
+  const getRoleBadge = () => {
+    if (!role) return null;
+    const colors: Record<string, string> = {
+      admin: 'bg-red-500',
+      maintenance: 'bg-purple-500',
+      tenant: 'bg-green-500',
+    };
+    return (
+      <Badge className={`${colors[role] || 'bg-gray-500'} text-white text-xs ml-2`}>
+        {role}
+      </Badge>
+    );
   };
 
   return (
@@ -42,6 +60,12 @@ export function Navbar() {
           
           {/* Desktop navigation */}
           <div className="hidden md:flex items-center space-x-4">
+            {isStaff && (
+              <Link to="/dashboard" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-navy-700 transition-colors flex items-center">
+                <LayoutDashboard className="h-4 w-4 mr-1" />
+                Dashboard
+              </Link>
+            )}
             <Link to="/work-orders" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-navy-700 transition-colors">
               Work Orders
             </Link>
@@ -57,6 +81,7 @@ export function Navbar() {
                 <div className="text-sm flex items-center">
                   <User className="h-4 w-4 mr-1" />
                   <span>{email}</span>
+                  {getRoleBadge()}
                 </div>
                 <Button variant="outline" size="sm" onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" /> Logout
@@ -87,6 +112,12 @@ export function Navbar() {
       {isMobileMenuOpen && (
         <div className="md:hidden">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-navy-800 border-t border-navy-700">
+            {isStaff && (
+              <Link to="/dashboard" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-navy-700 transition-colors flex items-center">
+                <LayoutDashboard className="h-4 w-4 mr-2" />
+                Dashboard
+              </Link>
+            )}
             <Link to="/work-orders" className="block px-3 py-2 rounded-md text-base font-medium hover:bg-navy-700 transition-colors">
               Work Orders
             </Link>
@@ -102,6 +133,7 @@ export function Navbar() {
                 <div className="px-3 py-2 text-sm flex items-center">
                   <User className="h-4 w-4 mr-1" />
                   <span>{email}</span>
+                  {getRoleBadge()}
                 </div>
                 <Button variant="outline" size="sm" className="w-full" onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" /> Logout
