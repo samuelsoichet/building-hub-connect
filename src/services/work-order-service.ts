@@ -168,20 +168,76 @@ export async function fetchWorkOrderWithDetails(id: string): Promise<{
 // ============================================
 
 /**
- * Update work order title (staff only)
+ * Update work order field (staff only)
+ */
+export async function updateWorkOrderField(
+  workOrderId: string,
+  field: 'title' | 'location' | 'description' | 'priority',
+  value: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const { error } = await (supabase as any)
+      .from('work_orders')
+      .update({ [field]: value })
+      .eq('id', workOrderId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Update work order title (staff only) - legacy support
  */
 export async function updateWorkOrderTitle(
   workOrderId: string,
   title: string
 ): Promise<{ success: boolean; error: string | null }> {
-  try {
-    const { error } = await (supabase as any)
-      .from('work_orders')
-      .update({ title })
-      .eq('id', workOrderId);
+  return updateWorkOrderField(workOrderId, 'title', title);
+}
 
-    if (error) {
-      return { success: false, error: error.message };
+/**
+ * Delete a work order photo
+ */
+export async function deleteWorkOrderPhoto(
+  photoId: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    // Get photo info first to get the storage path
+    const { data: photo, error: fetchError } = await (supabase as any)
+      .from('work_order_photos')
+      .select('photo_url')
+      .eq('id', photoId)
+      .single();
+
+    if (fetchError) {
+      return { success: false, error: fetchError.message };
+    }
+
+    // Extract the file path from the URL
+    if (photo?.photo_url) {
+      const urlParts = photo.photo_url.split('/work-order-photos/');
+      if (urlParts.length > 1) {
+        const filePath = urlParts[1];
+        await supabase.storage
+          .from('work-order-photos')
+          .remove([filePath]);
+      }
+    }
+
+    // Delete the database record
+    const { error: deleteError } = await (supabase as any)
+      .from('work_order_photos')
+      .delete()
+      .eq('id', photoId);
+
+    if (deleteError) {
+      return { success: false, error: deleteError.message };
     }
 
     return { success: true, error: null };
