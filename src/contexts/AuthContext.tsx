@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { Session, User } from '@supabase/supabase-js';
 import { toast } from "sonner";
@@ -40,7 +40,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const initializingRef = useRef<boolean>(false);
 
   // Function to fetch user role from the database
   const fetchUserRole = async (userId: string): Promise<UserRole | null> => {
@@ -92,31 +91,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    // Prevent double initialization
-    if (initializingRef.current) return;
-    initializingRef.current = true;
+    let isMounted = true;
 
-    // Set up auth state listener FIRST (before checking session)
+    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
+        if (!isMounted) return;
+        
         console.info(`Auth state changed: ${event}`);
         
-        // Only synchronous state updates here
         if (currentSession) {
           setIsAuthenticated(true);
           setEmail(currentSession.user?.email || null);
           setUser(currentSession.user);
           setSession(currentSession);
           
-          // Defer async operations to avoid deadlock
+          // Defer role fetch to avoid deadlock
           setTimeout(async () => {
+            if (!isMounted) return;
             const userRole = await fetchUserRole(currentSession.user.id);
-            setRole(userRole);
-            localStorage.setItem('auth', JSON.stringify({ 
-              isAuthenticated: true, 
-              email: currentSession.user?.email,
-              role: userRole
-            }));
+            if (isMounted) {
+              setRole(userRole);
+              localStorage.setItem('auth', JSON.stringify({ 
+                isAuthenticated: true, 
+                email: currentSession.user?.email,
+                role: userRole
+              }));
+            }
           }, 0);
         } else {
           setIsAuthenticated(false);
@@ -127,16 +128,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           localStorage.removeItem('auth');
         }
         
-        // Mark loading as complete after first auth state change
         setIsLoading(false);
       }
     );
 
-    // THEN check for existing session
+    // Check for existing session IMMEDIATELY (no delay!)
     const initAuth = async () => {
       try {
         console.log("Checking for existing session...");
         const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+        
+        if (!isMounted) return;
         
         if (error) {
           console.error("Error getting session:", error);
@@ -145,27 +147,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         
         if (currentSession) {
-          console.log("Found existing session");
-          await updateAuthState(currentSession);
+          console.log("Found existing session for:", currentSession.user?.email);
+          setIsAuthenticated(true);
+          setEmail(currentSession.user?.email || null);
+          setUser(currentSession.user);
+          setSession(currentSession);
+          
+          const userRole = await fetchUserRole(currentSession.user.id);
+          if (isMounted) {
+            setRole(userRole);
+            localStorage.setItem('auth', JSON.stringify({ 
+              isAuthenticated: true, 
+              email: currentSession.user?.email,
+              role: userRole
+            }));
+          }
         } else {
           console.log("No existing session found");
         }
         
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       } catch (error) {
         console.error("Error during auth initialization:", error);
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
-    // Use a small delay to ensure auth state listener is ready
-    const timeoutId = setTimeout(() => {
-      initAuth();
-    }, 100);
+    initAuth();
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
-      clearTimeout(timeoutId);
     };
   }, []);
 
