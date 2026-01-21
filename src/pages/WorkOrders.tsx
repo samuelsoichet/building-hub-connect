@@ -9,13 +9,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, Image, Plus, Eye, Loader2, Clock, CheckCircle, AlertCircle, XCircle, Wrench } from "lucide-react";
+import { Upload, Image, Plus, Eye, Loader2, Clock, CheckCircle, AlertCircle, XCircle, Wrench, FileText } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { createWorkOrder, fetchWorkOrders, getStatusInfo, getPriorityInfo } from "@/services/work-order-service";
 import type { WorkOrder, WorkOrderPriority } from "@/types/supabase-custom";
+import { 
+  getAttachmentType, 
+  processFileForUpload, 
+  isSupportedFileType, 
+  isValidFileSize,
+  formatFileSize,
+  MAX_FILE_SIZE,
+  type AttachmentType 
+} from "@/utils/file-utils";
 
 const WorkOrders = () => {
   const navigate = useNavigate();
@@ -30,6 +39,8 @@ const WorkOrders = () => {
 
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [attachmentType, setAttachmentType] = useState<AttachmentType>('image');
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
@@ -67,15 +78,51 @@ const WorkOrders = () => {
     setFormData((prev) => ({ ...prev, priority: value as WorkOrderPriority }));
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setPhotoFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      await processAndSetFile(file);
+    }
+  };
+
+  const processAndSetFile = async (file: File) => {
+    // Validate file type
+    if (!isSupportedFileType(file)) {
+      toast.error("Unsupported file type. Please upload an image (JPEG, PNG, HEIC, etc.) or PDF.");
+      return;
+    }
+
+    // Validate file size
+    if (!isValidFileSize(file)) {
+      toast.error(`File is too large. Maximum size is ${formatFileSize(MAX_FILE_SIZE)}.`);
+      return;
+    }
+
+    setIsProcessingFile(true);
+    
+    try {
+      // Process file (converts HEIC to JPEG if needed)
+      const processedFile = await processFileForUpload(file);
+      const fileType = getAttachmentType(processedFile);
+      
+      setPhotoFile(processedFile);
+      setAttachmentType(fileType);
+
+      // Generate preview for images, show icon for PDFs
+      if (fileType === 'image') {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setPhotoPreview(reader.result as string);
+        };
+        reader.readAsDataURL(processedFile);
+      } else if (fileType === 'pdf') {
+        // For PDFs, we'll use a placeholder
+        setPhotoPreview('pdf');
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to process file");
+    } finally {
+      setIsProcessingFile(false);
     }
   };
 
@@ -89,24 +136,20 @@ const WorkOrders = () => {
     e.stopPropagation();
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
 
     const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      setPhotoFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    if (file) {
+      await processAndSetFile(file);
     }
   };
 
   const handleRemovePhoto = () => {
     setPhotoPreview(null);
     setPhotoFile(null);
+    setAttachmentType('image');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -121,6 +164,7 @@ const WorkOrders = () => {
     });
     setPhotoFile(null);
     setPhotoPreview(null);
+    setAttachmentType('image');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -356,9 +400,9 @@ const WorkOrders = () => {
                     </div>
                   </div>
                   
-                  {/* Photo Upload Section */}
+                  {/* Photo/Document Upload Section */}
                   <div className="space-y-2">
-                    <Label htmlFor="photo">Upload Photo (Optional)</Label>
+                    <Label htmlFor="photo">Upload Photo or Document (Optional)</Label>
                     <div 
                       className="border-2 border-dashed border-gray-300 rounded-md p-4"
                       onDragOver={handleDragOver}
@@ -366,13 +410,28 @@ const WorkOrders = () => {
                       onDrop={handleDrop}
                     >
                       <div className="flex flex-col items-center">
-                        {photoPreview ? (
+                        {isProcessingFile ? (
+                          <div className="flex flex-col items-center py-4">
+                            <Loader2 className="h-10 w-10 text-primary animate-spin mb-2" />
+                            <p className="text-sm text-muted-foreground">Processing file...</p>
+                          </div>
+                        ) : photoPreview ? (
                           <div className="relative w-full">
-                            <img 
-                              src={photoPreview} 
-                              alt="Preview" 
-                              className="mx-auto max-h-48 object-contain rounded-md mb-2" 
-                            />
+                            {attachmentType === 'pdf' ? (
+                              <div className="flex flex-col items-center py-4">
+                                <FileText className="h-16 w-16 text-red-500 mb-2" />
+                                <p className="text-sm font-medium">{photoFile?.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {photoFile && formatFileSize(photoFile.size)}
+                                </p>
+                              </div>
+                            ) : (
+                              <img 
+                                src={photoPreview} 
+                                alt="Preview" 
+                                className="mx-auto max-h-48 object-contain rounded-md mb-2" 
+                              />
+                            )}
                             <Button 
                               type="button"
                               variant="outline" 
@@ -385,9 +444,15 @@ const WorkOrders = () => {
                           </div>
                         ) : (
                           <>
-                            <Image className="h-10 w-10 text-gray-400 mb-2" />
-                            <p className="text-sm text-gray-500">
-                              Drag and drop an image, or click to browse
+                            <div className="flex gap-2 mb-2">
+                              <Image className="h-8 w-8 text-gray-400" />
+                              <FileText className="h-8 w-8 text-gray-400" />
+                            </div>
+                            <p className="text-sm text-gray-500 text-center">
+                              Drag and drop a file, or click to browse
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Supports: JPEG, PNG, HEIC, PDF (max 10MB)
                             </p>
                           </>
                         )}
@@ -398,14 +463,15 @@ const WorkOrders = () => {
                               variant="outline" 
                               className="w-full flex items-center justify-center"
                               onClick={() => document.getElementById('file-upload')?.click()}
+                              disabled={isProcessingFile}
                             >
                               <Upload className="mr-2" size={16} />
-                              {photoPreview ? "Replace Photo" : "Upload Photo"}
+                              {photoPreview ? "Replace File" : "Upload File"}
                             </Button>
                             <Input
                               id="file-upload"
                               type="file"
-                              accept="image/*"
+                              accept="image/*,.heic,.heif,application/pdf"
                               className="sr-only"
                               onChange={handleFileChange}
                               ref={fileInputRef}
@@ -415,7 +481,7 @@ const WorkOrders = () => {
                       </div>
                     </div>
                     <p className="text-xs text-gray-500">
-                      Adding a photo helps our maintenance team better understand and address the issue.
+                      Adding a photo or document helps our maintenance team better understand and address the issue.
                     </p>
                   </div>
                   
