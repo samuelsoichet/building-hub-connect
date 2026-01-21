@@ -37,11 +37,14 @@ const WorkOrders = () => {
     priority: "" as WorkOrderPriority | "",
   });
 
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [attachmentType, setAttachmentType] = useState<AttachmentType>('image');
+  const [attachedFiles, setAttachedFiles] = useState<Array<{
+    file: File;
+    preview: string | null;
+    type: AttachmentType;
+  }>>([]);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const MAX_FILES = 5;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -79,50 +82,69 @@ const WorkOrders = () => {
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      await processAndSetFile(file);
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      await processAndAddFiles(Array.from(files));
     }
   };
 
-  const processAndSetFile = async (file: File) => {
-    // Validate file type
-    if (!isSupportedFileType(file)) {
-      toast.error("Unsupported file type. Please upload an image (JPEG, PNG, HEIC, etc.) or PDF.");
-      return;
-    }
-
-    // Validate file size
-    if (!isValidFileSize(file)) {
-      toast.error(`File is too large. Maximum size is ${formatFileSize(MAX_FILE_SIZE)}.`);
+  const processAndAddFiles = async (files: File[]) => {
+    // Check max files limit
+    if (attachedFiles.length + files.length > MAX_FILES) {
+      toast.error(`Maximum ${MAX_FILES} files allowed. You can add ${MAX_FILES - attachedFiles.length} more.`);
       return;
     }
 
     setIsProcessingFile(true);
     
     try {
-      // Process file (converts HEIC to JPEG if needed)
-      const processedFile = await processFileForUpload(file);
-      const fileType = getAttachmentType(processedFile);
+      const newAttachments: typeof attachedFiles = [];
       
-      setPhotoFile(processedFile);
-      setAttachmentType(fileType);
+      for (const file of files) {
+        // Validate file type
+        if (!isSupportedFileType(file)) {
+          toast.error(`"${file.name}" is not supported. Please upload images or PDFs.`);
+          continue;
+        }
 
-      // Generate preview for images, show icon for PDFs
-      if (fileType === 'image') {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setPhotoPreview(reader.result as string);
-        };
-        reader.readAsDataURL(processedFile);
-      } else if (fileType === 'pdf') {
-        // For PDFs, we'll use a placeholder
-        setPhotoPreview('pdf');
+        // Validate file size
+        if (!isValidFileSize(file)) {
+          toast.error(`"${file.name}" is too large. Maximum size is ${formatFileSize(MAX_FILE_SIZE)}.`);
+          continue;
+        }
+
+        // Process file (converts HEIC to JPEG if needed)
+        const processedFile = await processFileForUpload(file);
+        const fileType = getAttachmentType(processedFile);
+        
+        // Generate preview for images
+        let preview: string | null = null;
+        if (fileType === 'image') {
+          preview = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(processedFile);
+          });
+        } else if (fileType === 'pdf') {
+          preview = 'pdf';
+        }
+
+        newAttachments.push({
+          file: processedFile,
+          preview,
+          type: fileType,
+        });
       }
+
+      setAttachedFiles((prev) => [...prev, ...newAttachments]);
     } catch (error: any) {
-      toast.error(error.message || "Failed to process file");
+      toast.error(error.message || "Failed to process files");
     } finally {
       setIsProcessingFile(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -140,19 +162,14 @@ const WorkOrders = () => {
     e.preventDefault();
     e.stopPropagation();
 
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      await processAndSetFile(file);
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      await processAndAddFiles(Array.from(files));
     }
   };
 
-  const handleRemovePhoto = () => {
-    setPhotoPreview(null);
-    setPhotoFile(null);
-    setAttachmentType('image');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+  const handleRemoveFile = (index: number) => {
+    setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const resetForm = () => {
@@ -162,9 +179,7 @@ const WorkOrders = () => {
       location: "",
       priority: "",
     });
-    setPhotoFile(null);
-    setPhotoPreview(null);
-    setAttachmentType('image');
+    setAttachedFiles([]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -178,6 +193,9 @@ const WorkOrders = () => {
     setIsSubmitting(true);
     
     try {
+      // Extract files from attachedFiles
+      const files = attachedFiles.map((a) => a.file);
+      
       const result = await createWorkOrder(
         {
           title: formData.title,
@@ -185,7 +203,7 @@ const WorkOrders = () => {
           location: formData.location,
           priority: formData.priority as WorkOrderPriority,
         },
-        photoFile || undefined
+        files.length > 0 ? files : undefined
       );
 
       if (result.error) {
@@ -402,86 +420,110 @@ const WorkOrders = () => {
                   
                   {/* Photo/Document Upload Section */}
                   <div className="space-y-2">
-                    <Label htmlFor="photo">Upload Photo or Document (Optional)</Label>
-                    <div 
-                      className="border-2 border-dashed border-gray-300 rounded-md p-4"
-                      onDragOver={handleDragOver}
-                      onDragEnter={handleDragEnter}
-                      onDrop={handleDrop}
-                    >
-                      <div className="flex flex-col items-center">
-                        {isProcessingFile ? (
-                          <div className="flex flex-col items-center py-4">
-                            <Loader2 className="h-10 w-10 text-primary animate-spin mb-2" />
-                            <p className="text-sm text-muted-foreground">Processing file...</p>
-                          </div>
-                        ) : photoPreview ? (
-                          <div className="relative w-full">
-                            {attachmentType === 'pdf' ? (
-                              <div className="flex flex-col items-center py-4">
-                                <FileText className="h-16 w-16 text-red-500 mb-2" />
-                                <p className="text-sm font-medium">{photoFile?.name}</p>
+                    <Label htmlFor="photo">
+                      Upload Photos or Documents (Optional) 
+                      <span className="text-muted-foreground ml-1">
+                        ({attachedFiles.length}/{MAX_FILES})
+                      </span>
+                    </Label>
+                    
+                    {/* File previews grid */}
+                    {attachedFiles.length > 0 && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
+                        {attachedFiles.map((attachment, index) => (
+                          <div 
+                            key={index} 
+                            className="relative border rounded-lg p-2 bg-muted/30"
+                          >
+                            {attachment.type === 'pdf' ? (
+                              <div className="flex flex-col items-center py-2">
+                                <FileText className="h-10 w-10 text-red-500 mb-1" />
+                                <p className="text-xs font-medium truncate w-full text-center">
+                                  {attachment.file.name}
+                                </p>
                                 <p className="text-xs text-muted-foreground">
-                                  {photoFile && formatFileSize(photoFile.size)}
+                                  {formatFileSize(attachment.file.size)}
                                 </p>
                               </div>
                             ) : (
-                              <img 
-                                src={photoPreview} 
-                                alt="Preview" 
-                                className="mx-auto max-h-48 object-contain rounded-md mb-2" 
-                              />
+                              <div className="aspect-square relative">
+                                <img 
+                                  src={attachment.preview || ''} 
+                                  alt={`Preview ${index + 1}`} 
+                                  className="w-full h-full object-cover rounded" 
+                                />
+                              </div>
                             )}
                             <Button 
                               type="button"
-                              variant="outline" 
-                              size="sm"
-                              className="absolute top-0 right-0 bg-white" 
-                              onClick={handleRemovePhoto}
+                              variant="destructive" 
+                              size="icon"
+                              className="absolute -top-2 -right-2 h-6 w-6 rounded-full" 
+                              onClick={() => handleRemoveFile(index)}
                             >
-                              Remove
+                              <XCircle className="h-4 w-4" />
                             </Button>
                           </div>
-                        ) : (
-                          <>
-                            <div className="flex gap-2 mb-2">
-                              <Image className="h-8 w-8 text-gray-400" />
-                              <FileText className="h-8 w-8 text-gray-400" />
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Drop zone */}
+                    {attachedFiles.length < MAX_FILES && (
+                      <div 
+                        className="border-2 border-dashed border-gray-300 rounded-md p-4"
+                        onDragOver={handleDragOver}
+                        onDragEnter={handleDragEnter}
+                        onDrop={handleDrop}
+                      >
+                        <div className="flex flex-col items-center">
+                          {isProcessingFile ? (
+                            <div className="flex flex-col items-center py-4">
+                              <Loader2 className="h-10 w-10 text-primary animate-spin mb-2" />
+                              <p className="text-sm text-muted-foreground">Processing files...</p>
                             </div>
-                            <p className="text-sm text-gray-500 text-center">
-                              Drag and drop a file, or click to browse
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Supports: JPEG, PNG, HEIC, PDF (max 10MB)
-                            </p>
-                          </>
-                        )}
-                        <div className="mt-4 w-full">
-                          <label htmlFor="file-upload" className="w-full">
-                            <Button 
-                              type="button" 
-                              variant="outline" 
-                              className="w-full flex items-center justify-center"
-                              onClick={() => document.getElementById('file-upload')?.click()}
-                              disabled={isProcessingFile}
-                            >
-                              <Upload className="mr-2" size={16} />
-                              {photoPreview ? "Replace File" : "Upload File"}
-                            </Button>
-                            <Input
-                              id="file-upload"
-                              type="file"
-                              accept="image/*,.heic,.heif,application/pdf"
-                              className="sr-only"
-                              onChange={handleFileChange}
-                              ref={fileInputRef}
-                            />
-                          </label>
+                          ) : (
+                            <>
+                              <div className="flex gap-2 mb-2">
+                                <Image className="h-8 w-8 text-gray-400" />
+                                <FileText className="h-8 w-8 text-gray-400" />
+                              </div>
+                              <p className="text-sm text-gray-500 text-center">
+                                Drag and drop files, or click to browse
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Supports: JPEG, PNG, HEIC, PDF (max 10MB each, up to {MAX_FILES} files)
+                              </p>
+                            </>
+                          )}
+                          <div className="mt-4 w-full">
+                            <label htmlFor="file-upload" className="w-full">
+                              <Button 
+                                type="button" 
+                                variant="outline" 
+                                className="w-full flex items-center justify-center"
+                                onClick={() => document.getElementById('file-upload')?.click()}
+                                disabled={isProcessingFile}
+                              >
+                                <Plus className="mr-2" size={16} />
+                                Add Files
+                              </Button>
+                              <Input
+                                id="file-upload"
+                                type="file"
+                                accept="image/*,.heic,.heif,application/pdf"
+                                className="sr-only"
+                                onChange={handleFileChange}
+                                ref={fileInputRef}
+                                multiple
+                              />
+                            </label>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
                     <p className="text-xs text-gray-500">
-                      Adding a photo or document helps our maintenance team better understand and address the issue.
+                      Adding photos or documents helps our maintenance team better understand and address the issue.
                     </p>
                   </div>
                   

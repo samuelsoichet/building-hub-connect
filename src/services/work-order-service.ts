@@ -18,7 +18,7 @@ import type {
  */
 export async function createWorkOrder(
   workOrder: Omit<WorkOrderInsert, 'tenant_id'>,
-  photoFile?: File
+  photoFiles?: File[]
 ): Promise<{ workOrder: WorkOrder | null; error: string | null }> {
   try {
     // Get current user
@@ -43,11 +43,17 @@ export async function createWorkOrder(
       return { workOrder: null, error: error.message };
     }
 
-    // If a photo was provided, upload it
-    if (photoFile && data) {
-      const photoResult = await uploadWorkOrderPhoto(data.id, photoFile, 'initial');
-      if (photoResult.error) {
-        console.warn("Work order created but photo upload failed:", photoResult.error);
+    // If photos were provided, upload them all
+    if (photoFiles && photoFiles.length > 0 && data) {
+      const uploadPromises = photoFiles.map((file) => 
+        uploadWorkOrderPhoto(data.id, file, 'initial')
+      );
+      
+      const results = await Promise.all(uploadPromises);
+      const failedUploads = results.filter((r) => r.error);
+      
+      if (failedUploads.length > 0) {
+        console.warn(`Work order created but ${failedUploads.length} photo upload(s) failed`);
       }
     }
 
