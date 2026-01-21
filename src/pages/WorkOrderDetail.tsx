@@ -9,6 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { 
   Dialog,
   DialogContent,
   DialogDescription,
@@ -27,14 +34,16 @@ import {
   Camera,
   MessageSquare,
   Star,
-  Upload,
   User,
   Calendar,
   MapPin,
   AlertTriangle,
   Pencil,
   Check,
-  X
+  X,
+  FileText,
+  Trash2,
+  Plus
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -49,11 +58,18 @@ import {
   signOffWorkOrder,
   addWorkOrderComment,
   uploadWorkOrderPhoto,
-  updateWorkOrderTitle,
+  updateWorkOrderField,
+  deleteWorkOrderPhoto,
   getStatusInfo, 
   getPriorityInfo 
 } from "@/services/work-order-service";
 import type { WorkOrder, WorkOrderPhoto, WorkOrderComment } from "@/types/supabase-custom";
+import { InlineEdit } from "@/components/InlineEdit";
+import { 
+  processFileForUpload, 
+  isSupportedFileType, 
+  isValidFileSize 
+} from "@/utils/file-utils";
 
 const WorkOrderDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -81,11 +97,15 @@ const WorkOrderDetail = () => {
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [showSignOffDialog, setShowSignOffDialog] = useState(false);
   
-  // Title editing states
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [editedTitle, setEditedTitle] = useState("");
-  const [isSavingTitle, setIsSavingTitle] = useState(false);
-  const titleInputRef = useRef<HTMLInputElement>(null);
+  // Photo upload states
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [isDeletingPhoto, setIsDeletingPhoto] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  
+  // Priority editing
+  const [isEditingPriority, setIsEditingPriority] = useState(false);
+  const [editedPriority, setEditedPriority] = useState("");
+  const [isSavingPriority, setIsSavingPriority] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -258,52 +278,95 @@ const WorkOrderDetail = () => {
   const isTenant = role === 'tenant';
   const isOwner = workOrder?.tenant_id === user?.id;
 
-  const handleStartEditTitle = () => {
-    if (workOrder) {
-      setEditedTitle(workOrder.title);
-      setIsEditingTitle(true);
-      setTimeout(() => titleInputRef.current?.focus(), 0);
+  // Field update handlers
+  const handleUpdateField = async (field: 'title' | 'location' | 'description', value: string) => {
+    if (!id) return;
+    const result = await updateWorkOrderField(id, field, value);
+    if (result.error) {
+      toast.error(result.error);
+      throw new Error(result.error);
     }
+    toast.success(`${field.charAt(0).toUpperCase() + field.slice(1)} updated`);
+    loadWorkOrder();
   };
 
-  const handleCancelEditTitle = () => {
-    setIsEditingTitle(false);
-    setEditedTitle("");
-  };
-
-  const handleSaveTitle = async () => {
-    if (!id || !editedTitle.trim()) {
-      toast.error("Title cannot be empty");
-      return;
-    }
+  const handleSavePriority = async () => {
+    if (!id || !editedPriority) return;
     
-    if (editedTitle.trim() === workOrder?.title) {
-      setIsEditingTitle(false);
-      return;
-    }
-
-    setIsSavingTitle(true);
+    setIsSavingPriority(true);
     try {
-      const result = await updateWorkOrderTitle(id, editedTitle.trim());
+      const result = await updateWorkOrderField(id, 'priority', editedPriority);
       if (result.error) {
         toast.error(result.error);
         return;
       }
-      toast.success("Title updated");
-      setIsEditingTitle(false);
+      toast.success("Priority updated");
+      setIsEditingPriority(false);
       loadWorkOrder();
     } catch (error) {
-      toast.error("Failed to update title");
+      toast.error("Failed to update priority");
     } finally {
-      setIsSavingTitle(false);
+      setIsSavingPriority(false);
     }
   };
 
-  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSaveTitle();
-    } else if (e.key === 'Escape') {
-      handleCancelEditTitle();
+  const handleStartEditPriority = () => {
+    if (workOrder) {
+      setEditedPriority(workOrder.priority);
+      setIsEditingPriority(true);
+    }
+  };
+
+  // Photo management handlers
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !id) return;
+
+    setIsUploadingPhoto(true);
+    try {
+      for (const file of Array.from(files)) {
+        if (!isSupportedFileType(file)) {
+          toast.error(`Unsupported file type: ${file.name}`);
+          continue;
+        }
+        if (!isValidFileSize(file)) {
+          toast.error(`File too large: ${file.name} (max 10MB)`);
+          continue;
+        }
+
+        const processedFile = await processFileForUpload(file);
+        const result = await uploadWorkOrderPhoto(id, processedFile, 'initial');
+        
+        if (result.error) {
+          toast.error(`Failed to upload ${file.name}`);
+        }
+      }
+      toast.success("Photos uploaded successfully");
+      loadWorkOrder();
+    } catch (error) {
+      toast.error("Failed to upload photos");
+    } finally {
+      setIsUploadingPhoto(false);
+      if (photoInputRef.current) {
+        photoInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDeletePhoto = async (photoId: string) => {
+    setIsDeletingPhoto(photoId);
+    try {
+      const result = await deleteWorkOrderPhoto(photoId);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Photo deleted");
+      loadWorkOrder();
+    } catch (error) {
+      toast.error("Failed to delete photo");
+    } finally {
+      setIsDeletingPhoto(null);
     }
   };
 
@@ -365,23 +428,67 @@ const WorkOrderDetail = () => {
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div className="flex-1 mr-4">
-                  {isEditingTitle ? (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        ref={titleInputRef}
-                        value={editedTitle}
-                        onChange={(e) => setEditedTitle(e.target.value)}
-                        onKeyDown={handleTitleKeyDown}
-                        className="text-2xl font-semibold h-auto py-1"
-                        disabled={isSavingTitle}
+                  {/* Title - Inline Edit */}
+                  <InlineEdit
+                    value={workOrder.title}
+                    onSave={(value) => handleUpdateField('title', value)}
+                    isEditable={isStaff}
+                    displayClassName="text-2xl font-semibold"
+                    inputClassName="text-2xl font-semibold h-auto py-1"
+                    placeholder="Enter title..."
+                  />
+                  
+                  {/* Location - Inline Edit */}
+                  <div className="mt-2 flex items-center gap-4 flex-wrap">
+                    <span className="flex items-center gap-1 text-muted-foreground">
+                      <MapPin className="h-4 w-4" />
+                      <InlineEdit
+                        value={workOrder.location || ''}
+                        onSave={(value) => handleUpdateField('location', value)}
+                        isEditable={isStaff}
+                        displayClassName="text-sm"
+                        inputClassName="text-sm h-8"
+                        placeholder="Enter location..."
+                        emptyText="No location specified"
                       />
+                    </span>
+                    <span className="flex items-center gap-1 text-muted-foreground text-sm">
+                      <Calendar className="h-4 w-4" />
+                      {formatDate(workOrder.created_at)}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 items-end">
+                  <Badge className={`${statusInfo.bgColor} ${statusInfo.color}`}>
+                    {statusInfo.label}
+                  </Badge>
+                  
+                  {/* Priority - Inline Edit */}
+                  {isEditingPriority ? (
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={editedPriority}
+                        onValueChange={setEditedPriority}
+                        disabled={isSavingPriority}
+                      >
+                        <SelectTrigger className="h-8 w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="low">Low</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="emergency">Emergency</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={handleSaveTitle}
-                        disabled={isSavingTitle}
+                        onClick={handleSavePriority}
+                        disabled={isSavingPriority}
+                        className="h-8 w-8 p-0"
                       >
-                        {isSavingTitle ? (
+                        {isSavingPriority ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <Check className="h-4 w-4 text-green-600" />
@@ -390,52 +497,47 @@ const WorkOrderDetail = () => {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={handleCancelEditTitle}
-                        disabled={isSavingTitle}
+                        onClick={() => setIsEditingPriority(false)}
+                        disabled={isSavingPriority}
+                        className="h-8 w-8 p-0"
                       >
                         <X className="h-4 w-4 text-red-600" />
                       </Button>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 group">
-                      <CardTitle className="text-2xl">{workOrder.title}</CardTitle>
+                    <div className="flex items-center gap-1 group">
+                      <Badge variant="outline" className={`${priorityInfo.bgColor} ${priorityInfo.color}`}>
+                        {priorityInfo.label} Priority
+                      </Badge>
                       {isStaff && (
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={handleStartEditTitle}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={handleStartEditPriority}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Pencil className="h-3 w-3" />
                         </Button>
                       )}
                     </div>
                   )}
-                  <CardDescription className="mt-2 flex items-center gap-4">
-                    <span className="flex items-center gap-1">
-                      <MapPin className="h-4 w-4" />
-                      {workOrder.location}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
-                      {formatDate(workOrder.created_at)}
-                    </span>
-                  </CardDescription>
-                </div>
-                <div className="flex flex-col gap-2 items-end">
-                  <Badge className={`${statusInfo.bgColor} ${statusInfo.color}`}>
-                    {statusInfo.label}
-                  </Badge>
-                  <Badge variant="outline" className={`${priorityInfo.bgColor} ${priorityInfo.color}`}>
-                    {priorityInfo.label} Priority
-                  </Badge>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
+              {/* Description - Inline Edit */}
               <div className="prose max-w-none">
-                <h4 className="text-sm font-medium text-gray-500 mb-2">Description</h4>
-                <p className="text-gray-700">{workOrder.description}</p>
+                <h4 className="text-sm font-medium text-muted-foreground mb-2">Description</h4>
+                <InlineEdit
+                  value={workOrder.description || ''}
+                  onSave={(value) => handleUpdateField('description', value)}
+                  isEditable={isStaff}
+                  type="textarea"
+                  displayClassName="text-foreground"
+                  inputClassName=""
+                  placeholder="Enter description..."
+                  emptyText="No description provided"
+                />
               </div>
               
               {/* Action Buttons based on status and role */}
@@ -766,35 +868,109 @@ const WorkOrderDetail = () => {
           </Card>
 
           {/* Photos Card */}
-          {photos.length > 0 && (
-            <Card>
-              <CardHeader>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Camera className="h-5 w-5" />
-                  Photos
+                  Photos & Documents
                 </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {photos.map((photo) => (
-                    <div key={photo.id} className="relative">
-                      <img 
-                        src={photo.photo_url} 
-                        alt={photo.caption || "Work order photo"}
-                        className="w-full h-40 object-cover rounded-md"
-                      />
-                      <Badge 
-                        className="absolute bottom-2 left-2"
-                        variant="secondary"
-                      >
-                        {photo.photo_type}
-                      </Badge>
-                    </div>
-                  ))}
+                {isStaff && (
+                  <div>
+                    <Input
+                      ref={photoInputRef}
+                      type="file"
+                      accept="image/*,.heic,.heif,application/pdf"
+                      multiple
+                      className="hidden"
+                      onChange={handlePhotoUpload}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => photoInputRef.current?.click()}
+                      disabled={isUploadingPhoto}
+                    >
+                      {isUploadingPhoto ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <Plus className="h-4 w-4 mr-2" />
+                      )}
+                      Add Files
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {photos.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Camera className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No photos or documents attached</p>
+                  {isStaff && (
+                    <Button
+                      variant="link"
+                      onClick={() => photoInputRef.current?.click()}
+                      disabled={isUploadingPhoto}
+                      className="mt-2"
+                    >
+                      Click to upload
+                    </Button>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {photos.map((photo) => {
+                    const isPdf = photo.photo_url.toLowerCase().endsWith('.pdf');
+                    return (
+                      <div key={photo.id} className="relative group">
+                        {isPdf ? (
+                          <a
+                            href={photo.photo_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center w-full h-40 bg-muted rounded-md hover:bg-muted/80 transition-colors"
+                          >
+                            <div className="text-center">
+                              <FileText className="h-12 w-12 mx-auto text-muted-foreground" />
+                              <span className="text-sm text-muted-foreground mt-2 block">PDF Document</span>
+                            </div>
+                          </a>
+                        ) : (
+                          <img 
+                            src={photo.photo_url} 
+                            alt={photo.caption || "Work order photo"}
+                            className="w-full h-40 object-cover rounded-md"
+                          />
+                        )}
+                        <Badge 
+                          className="absolute bottom-2 left-2"
+                          variant="secondary"
+                        >
+                          {photo.photo_type}
+                        </Badge>
+                        {isStaff && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDeletePhoto(photo.id)}
+                            disabled={isDeletingPhoto === photo.id}
+                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0"
+                          >
+                            {isDeletingPhoto === photo.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Comments Card */}
           <Card>
