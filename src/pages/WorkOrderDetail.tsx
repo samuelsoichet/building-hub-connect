@@ -47,7 +47,8 @@ import {
   History,
   ChevronDown,
   ChevronUp,
-  ArrowRight
+  ArrowRight,
+  RotateCcw
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useState, useEffect, useRef } from "react";
@@ -65,6 +66,8 @@ import {
   uploadWorkOrderPhoto,
   updateWorkOrderField,
   deleteWorkOrderPhoto,
+  softDeleteWorkOrderPhoto,
+  restoreWorkOrderPhoto,
   fetchWorkOrderHistory,
   provideQuote,
   approveQuote,
@@ -470,15 +473,36 @@ const WorkOrderDetail = () => {
   const handleDeletePhoto = async (photoId: string) => {
     setIsDeletingPhoto(photoId);
     try {
-      const result = await deleteWorkOrderPhoto(photoId);
+      // Admins can hard delete, others soft delete
+      const result = role === 'admin' 
+        ? await deleteWorkOrderPhoto(photoId)
+        : await softDeleteWorkOrderPhoto(photoId);
+      
       if (result.error) {
         toast.error(result.error);
         return;
       }
-      toast.success("Photo deleted");
+      toast.success(role === 'admin' ? "Photo permanently deleted" : "Photo removed");
       loadWorkOrder();
     } catch (error) {
       toast.error("Failed to delete photo");
+    } finally {
+      setIsDeletingPhoto(null);
+    }
+  };
+
+  const handleRestorePhoto = async (photoId: string) => {
+    setIsDeletingPhoto(photoId); // reuse same loading state
+    try {
+      const result = await restoreWorkOrderPhoto(photoId);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Photo restored");
+      loadWorkOrder();
+    } catch (error) {
+      toast.error("Failed to restore photo");
     } finally {
       setIsDeletingPhoto(null);
     }
@@ -1261,14 +1285,22 @@ const WorkOrderDetail = () => {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {photos.map((photo) => {
                     const isPdf = photo.photo_url.toLowerCase().endsWith('.pdf');
+                    const isDeleted = photo.is_deleted;
+                    const canDelete = canEdit || (isStaff && isDeleted); // Staff can see deleted photos
+                    const canRestore = isStaff && isDeleted;
+                    const canHardDelete = role === 'admin';
+                    
                     return (
-                      <div key={photo.id} className="relative group">
+                      <div 
+                        key={photo.id} 
+                        className={`relative group ${isDeleted ? 'opacity-60' : ''}`}
+                      >
                         {isPdf ? (
                           <a
                             href={photo.photo_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center justify-center w-full h-40 bg-muted rounded-md hover:bg-muted/80 transition-colors"
+                            className={`flex items-center justify-center w-full h-40 bg-muted rounded-md hover:bg-muted/80 transition-colors ${isDeleted ? 'border-2 border-dashed border-red-300' : ''}`}
                           >
                             <div className="text-center">
                               <FileText className="h-12 w-12 mx-auto text-muted-foreground" />
@@ -1279,30 +1311,84 @@ const WorkOrderDetail = () => {
                           <img 
                             src={photo.photo_url} 
                             alt={photo.caption || "Work order photo"}
-                            className="w-full h-40 object-cover rounded-md"
+                            className={`w-full h-40 object-cover rounded-md ${isDeleted ? 'border-2 border-dashed border-red-300 grayscale' : ''}`}
                           />
                         )}
+                        
+                        {/* Photo type badge */}
                         <Badge 
                           className="absolute bottom-2 left-2"
                           variant="secondary"
                         >
                           {photo.photo_type}
                         </Badge>
-                        {canEdit && (
-                          <Button
-                            size="sm"
+                        
+                        {/* Deleted badge for staff */}
+                        {isDeleted && isStaff && (
+                          <Badge 
+                            className="absolute top-2 left-2"
                             variant="destructive"
-                            onClick={() => handleDeletePhoto(photo.id)}
-                            disabled={isDeletingPhoto === photo.id}
-                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0"
                           >
-                            {isDeletingPhoto === photo.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                          </Button>
+                            Deleted
+                          </Badge>
                         )}
+                        
+                        {/* Action buttons */}
+                        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {/* Restore button for staff on deleted photos */}
+                          {canRestore && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => handleRestorePhoto(photo.id)}
+                              disabled={isDeletingPhoto === photo.id}
+                              className="h-8 w-8 p-0"
+                              title="Restore photo"
+                            >
+                              {isDeletingPhoto === photo.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <RotateCcw className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
+                          
+                          {/* Delete button - soft delete for tenants, hard delete for admins */}
+                          {(canEdit && !isDeleted) && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDeletePhoto(photo.id)}
+                              disabled={isDeletingPhoto === photo.id}
+                              className="h-8 w-8 p-0"
+                              title={role === 'admin' ? "Permanently delete" : "Delete photo"}
+                            >
+                              {isDeletingPhoto === photo.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
+                          
+                          {/* Hard delete for admins on already soft-deleted photos */}
+                          {canHardDelete && isDeleted && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDeletePhoto(photo.id)}
+                              disabled={isDeletingPhoto === photo.id}
+                              className="h-8 w-8 p-0"
+                              title="Permanently delete"
+                            >
+                              {isDeletingPhoto === photo.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}

@@ -364,6 +364,7 @@ export type Database = {
           caption: string | null
           created_at: string
           id: string
+          is_deleted: boolean
           photo_type: string | null
           photo_url: string
           uploaded_by: string | null
@@ -373,6 +374,7 @@ export type Database = {
           caption?: string | null
           created_at?: string
           id?: string
+          is_deleted?: boolean
           photo_type?: string | null
           photo_url: string
           uploaded_by?: string | null
@@ -382,6 +384,7 @@ export type Database = {
           caption?: string | null
           created_at?: string
           id?: string
+          is_deleted?: boolean
           photo_type?: string | null
           photo_url?: string
           uploaded_by?: string | null
