@@ -318,7 +318,8 @@ export async function updateWorkOrder(
  */
 export async function fetchWorkOrderHistory(workOrderId: string): Promise<WorkOrderHistory[]> {
   try {
-    const { data, error } = await (supabase as any)
+    // Fetch history entries
+    const { data: historyData, error } = await (supabase as any)
       .from('work_order_history')
       .select('*')
       .eq('work_order_id', workOrderId)
@@ -329,7 +330,39 @@ export async function fetchWorkOrderHistory(workOrderId: string): Promise<WorkOr
       return [];
     }
 
-    return data || [];
+    if (!historyData || historyData.length === 0) {
+      return [];
+    }
+
+    // Get unique user IDs from history
+    const userIds = [...new Set(historyData.map((h: WorkOrderHistory) => h.changed_by))];
+
+    // Fetch profiles for those users
+    const { data: profilesData, error: profilesError } = await (supabase as any)
+      .from('profiles')
+      .select('user_id, full_name, email')
+      .in('user_id', userIds);
+
+    if (profilesError) {
+      console.warn("Error fetching profiles for history:", profilesError);
+    }
+
+    // Create a map of user_id -> profile
+    const profileMap = new Map<string, { full_name: string | null; email: string | null }>();
+    if (profilesData) {
+      for (const profile of profilesData) {
+        profileMap.set(profile.user_id, {
+          full_name: profile.full_name,
+          email: profile.email,
+        });
+      }
+    }
+
+    // Attach profile data to each history entry
+    return historyData.map((entry: WorkOrderHistory) => ({
+      ...entry,
+      changed_by_profile: profileMap.get(entry.changed_by) || null,
+    }));
   } catch (err) {
     console.error("Error in fetchWorkOrderHistory:", err);
     return [];
