@@ -429,7 +429,129 @@ export async function deleteWorkOrderPhoto(
 // ============================================
 
 /**
- * Approve a work order (maintenance/admin only)
+ * Provide a quote for a work order (maintenance/admin only)
+ * For small jobs: directly approves the work order
+ * For large jobs: sets status to quote_provided
+ */
+export async function provideQuote(
+  workOrderId: string,
+  data: {
+    jobSize: 'small' | 'large';
+    quotedAmount?: number;
+    quoteNotes?: string;
+  }
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    const now = new Date().toISOString();
+
+    if (data.jobSize === 'small') {
+      // Small jobs go directly to approved
+      const { error } = await (supabase as any)
+        .from('work_orders')
+        .update({
+          status: 'approved' as WorkOrderStatus,
+          job_size: 'small',
+          approved_by: user.id,
+          approved_at: now,
+        })
+        .eq('id', workOrderId);
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+    } else {
+      // Large jobs require tenant approval
+      if (!data.quotedAmount || data.quotedAmount <= 0) {
+        return { success: false, error: "Quoted amount is required for large jobs" };
+      }
+
+      const { error } = await (supabase as any)
+        .from('work_orders')
+        .update({
+          status: 'quote_provided' as WorkOrderStatus,
+          job_size: 'large',
+          quoted_amount: data.quotedAmount,
+          quote_notes: data.quoteNotes || null,
+          quote_provided_at: now,
+          quote_provided_by: user.id,
+        })
+        .eq('id', workOrderId);
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+    }
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Tenant approves a quote
+ */
+export async function approveQuote(
+  workOrderId: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const now = new Date().toISOString();
+
+    const { error } = await (supabase as any)
+      .from('work_orders')
+      .update({
+        status: 'approved' as WorkOrderStatus,
+        quote_approved_at: now,
+        approved_at: now,
+      })
+      .eq('id', workOrderId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Tenant rejects a quote
+ */
+export async function rejectQuote(
+  workOrderId: string,
+  reason?: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const now = new Date().toISOString();
+
+    const { error } = await (supabase as any)
+      .from('work_orders')
+      .update({
+        status: 'quote_rejected' as WorkOrderStatus,
+        quote_rejected_at: now,
+        quote_rejection_reason: reason || null,
+      })
+      .eq('id', workOrderId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Approve a work order (maintenance/admin only) - Legacy support
  */
 export async function approveWorkOrder(
   workOrderId: string, 
@@ -742,6 +864,8 @@ export function getStatusInfo(status: WorkOrderStatus): {
 } {
   const statusMap: Record<WorkOrderStatus, { label: string; color: string; bgColor: string }> = {
     pending: { label: 'Pending Review', color: 'text-yellow-700', bgColor: 'bg-yellow-100' },
+    quote_provided: { label: 'Quote Provided', color: 'text-orange-700', bgColor: 'bg-orange-100' },
+    quote_rejected: { label: 'Quote Rejected', color: 'text-red-700', bgColor: 'bg-red-100' },
     approved: { label: 'Approved', color: 'text-blue-700', bgColor: 'bg-blue-100' },
     in_progress: { label: 'In Progress', color: 'text-purple-700', bgColor: 'bg-purple-100' },
     completed: { label: 'Completed - Awaiting Sign-off', color: 'text-orange-700', bgColor: 'bg-orange-100' },

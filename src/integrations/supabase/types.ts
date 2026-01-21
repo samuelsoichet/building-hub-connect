@@ -407,12 +407,22 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          job_size: string | null
           location: string | null
           priority: Database["public"]["Enums"]["work_order_priority"]
+          quote_approved_at: string | null
+          quote_notes: string | null
+          quote_provided_at: string | null
+          quote_provided_by: string | null
+          quote_rejected_at: string | null
+          quote_rejection_reason: string | null
+          quoted_amount: number | null
           rejected_at: string | null
           rejected_by: string | null
           rejection_reason: string | null
           signed_off_at: string | null
+          signoff_feedback: string | null
+          signoff_rating: number | null
           started_at: string | null
           status: Database["public"]["Enums"]["work_order_status"]
           tenant_feedback: string | null
@@ -432,12 +442,22 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          job_size?: string | null
           location?: string | null
           priority?: Database["public"]["Enums"]["work_order_priority"]
+          quote_approved_at?: string | null
+          quote_notes?: string | null
+          quote_provided_at?: string | null
+          quote_provided_by?: string | null
+          quote_rejected_at?: string | null
+          quote_rejection_reason?: string | null
+          quoted_amount?: number | null
           rejected_at?: string | null
           rejected_by?: string | null
           rejection_reason?: string | null
           signed_off_at?: string | null
+          signoff_feedback?: string | null
+          signoff_rating?: number | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["work_order_status"]
           tenant_feedback?: string | null
@@ -457,12 +477,22 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          job_size?: string | null
           location?: string | null
           priority?: Database["public"]["Enums"]["work_order_priority"]
+          quote_approved_at?: string | null
+          quote_notes?: string | null
+          quote_provided_at?: string | null
+          quote_provided_by?: string | null
+          quote_rejected_at?: string | null
+          quote_rejection_reason?: string | null
+          quoted_amount?: number | null
           rejected_at?: string | null
           rejected_by?: string | null
           rejection_reason?: string | null
           signed_off_at?: string | null
+          signoff_feedback?: string | null
+          signoff_rating?: number | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["work_order_status"]
           tenant_feedback?: string | null
@@ -526,6 +556,8 @@ export type Database = {
         | "completed"
         | "signed_off"
         | "rejected"
+        | "quote_provided"
+        | "quote_rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -674,6 +706,8 @@ export const Constants = {
         "completed",
         "signed_off",
         "rejected",
+        "quote_provided",
+        "quote_rejected",
       ],
     },
   },
