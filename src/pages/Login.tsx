@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -142,13 +142,13 @@ const Login = () => {
   });
 
   // If user is already authenticated, redirect them
-  if (isAuthenticated) {
-    navigate('/work-orders');
-    return null;
-  }
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/work-orders', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleLoginSubmit = async (values: LoginFormValues) => {
-    console.log("Login form submitted with values:", values);
     setIsLoading(true);
 
     try {
@@ -159,7 +159,6 @@ const Login = () => {
         toast.error(error || "Failed to sign in");
       } else {
         toast.success("Signed in successfully!");
-        navigate('/work-orders');
       }
     } catch (err: any) {
       console.error("Login error:", err);
