@@ -10,7 +10,7 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft, Mail, Lock } from "lucide-react";
+import { Loader2, ArrowLeft, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { 
   Select, 
   SelectContent, 
@@ -70,6 +70,9 @@ const Login = () => {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
   const [forgotPasswordSent, setForgotPasswordSent] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { login, loginWithPassword, register, registerWithPassword, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"login" | "register">("login");
@@ -351,12 +354,28 @@ const Login = () => {
                               <FormItem>
                                 <FormLabel>Password</FormLabel>
                                 <FormControl>
-                                  <Input
-                                    {...field}
-                                    type="password"
-                                    placeholder="Enter your password"
-                                    disabled={isLoading}
-                                  />
+                                  <div className="relative">
+                                    <Input
+                                      {...field}
+                                      type={showPassword ? "text" : "password"}
+                                      placeholder="Enter your password"
+                                      disabled={isLoading}
+                                      className="pr-10"
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                      onClick={() => setShowPassword(!showPassword)}
+                                    >
+                                      {showPassword ? (
+                                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                      ) : (
+                                        <Eye className="h-4 w-4 text-muted-foreground" />
+                                      )}
+                                    </Button>
+                                  </div>
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
