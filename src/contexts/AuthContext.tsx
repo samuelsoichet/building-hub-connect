@@ -209,6 +209,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Password login error:', error);
         return { error: error.message };
       }
+
+      // Update state immediately to avoid route-guard race conditions.
+      // The onAuthStateChange listener will also run, but this makes navigation reliable.
+      await updateAuthState(data.session);
       
       console.log("Password sign-in successful", data);
       return {};
