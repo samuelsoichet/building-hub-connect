@@ -41,20 +41,63 @@ const ResetPassword = () => {
   useEffect(() => {
     // Check if we have a valid recovery session
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      // Check URL for recovery token indicators
+      // Check URL for recovery token indicators first
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const type = hashParams.get('type');
+      const accessToken = hashParams.get('access_token');
       
-      if (type === 'recovery' || session) {
+      // If there's a recovery type or access token in the URL, Supabase will handle it
+      if (type === 'recovery' || accessToken) {
+        console.log('[ResetPassword] Found recovery token in URL, waiting for session...');
+        
+        // Give Supabase a moment to process the hash and establish the session
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Now check for session
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('[ResetPassword] Error getting session:', error);
+          setIsValidToken(false);
+          return;
+        }
+        
+        if (session) {
+          console.log('[ResetPassword] Session established for recovery');
+          // Clean up the URL
+          window.history.replaceState({}, document.title, '/reset-password');
+          setIsValidToken(true);
+        } else {
+          console.log('[ResetPassword] No session found after processing token');
+          setIsValidToken(false);
+        }
+        return;
+      }
+      
+      // No hash params - check for existing session (user might have refreshed)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        console.log('[ResetPassword] Found existing session');
         setIsValidToken(true);
       } else {
+        console.log('[ResetPassword] No valid recovery token or session');
         setIsValidToken(false);
       }
     };
 
+    // Listen for auth state changes (in case token is processed async)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[ResetPassword] Auth state changed:', event);
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
+        setIsValidToken(true);
+      }
+    });
+
     checkSession();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleSubmit = async (values: ResetPasswordFormValues) => {
