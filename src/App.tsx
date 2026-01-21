@@ -13,6 +13,7 @@ import Payments from "./pages/Payments";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import AuthCallback from "./pages/AuthCallback";
+import ResetPassword from "./pages/ResetPassword";
 import AdminUsers from "./pages/AdminUsers";
 import Settings from "./pages/Settings";
 import MaintenanceDashboard from "./pages/MaintenanceDashboard";
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/documents" element={<Documents />} />
             
             {/* Protected Routes for all authenticated users */}
