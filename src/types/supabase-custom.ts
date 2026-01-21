@@ -11,7 +11,7 @@ export type Json =
 
 // Enums
 export type UserRole = 'admin' | 'tenant' | 'maintenance';
-export type WorkOrderStatus = 'pending' | 'approved' | 'in_progress' | 'completed' | 'signed_off' | 'rejected';
+export type WorkOrderStatus = 'pending' | 'quote_provided' | 'quote_rejected' | 'approved' | 'in_progress' | 'completed' | 'signed_off' | 'rejected';
 export type WorkOrderPriority = 'low' | 'medium' | 'high' | 'emergency';
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded' | 'cancelled';
 export type NotificationType = 
@@ -48,6 +48,17 @@ export interface WorkOrder {
   tenant_feedback: string | null;
   tenant_rating: number | null;
   completion_notes: string | null;
+  // Quote workflow fields
+  job_size: 'small' | 'large' | null;
+  quoted_amount: number | null;
+  quote_notes: string | null;
+  quote_provided_at: string | null;
+  quote_provided_by: string | null;
+  quote_approved_at: string | null;
+  quote_rejected_at: string | null;
+  quote_rejection_reason: string | null;
+  signoff_rating: number | null;
+  signoff_feedback: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -74,6 +85,17 @@ export interface WorkOrderInsert {
   tenant_feedback?: string | null;
   tenant_rating?: number | null;
   completion_notes?: string | null;
+  // Quote workflow fields
+  job_size?: 'small' | 'large' | null;
+  quoted_amount?: number | null;
+  quote_notes?: string | null;
+  quote_provided_at?: string | null;
+  quote_provided_by?: string | null;
+  quote_approved_at?: string | null;
+  quote_rejected_at?: string | null;
+  quote_rejection_reason?: string | null;
+  signoff_rating?: number | null;
+  signoff_feedback?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -100,6 +122,17 @@ export interface WorkOrderUpdate {
   tenant_feedback?: string | null;
   tenant_rating?: number | null;
   completion_notes?: string | null;
+  // Quote workflow fields
+  job_size?: 'small' | 'large' | null;
+  quoted_amount?: number | null;
+  quote_notes?: string | null;
+  quote_provided_at?: string | null;
+  quote_provided_by?: string | null;
+  quote_approved_at?: string | null;
+  quote_rejected_at?: string | null;
+  quote_rejection_reason?: string | null;
+  signoff_rating?: number | null;
+  signoff_feedback?: string | null;
   created_at?: string;
   updated_at?: string;
 }

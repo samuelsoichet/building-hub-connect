@@ -66,6 +66,9 @@ import {
   updateWorkOrderField,
   deleteWorkOrderPhoto,
   fetchWorkOrderHistory,
+  provideQuote,
+  approveQuote,
+  rejectQuote,
   getStatusInfo, 
   getPriorityInfo 
 } from "@/services/work-order-service";
@@ -102,6 +105,13 @@ const WorkOrderDetail = () => {
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [showSignOffDialog, setShowSignOffDialog] = useState(false);
+  const [showQuoteRejectDialog, setShowQuoteRejectDialog] = useState(false);
+  
+  // Quote workflow states
+  const [jobSize, setJobSize] = useState<'small' | 'large'>('small');
+  const [quotedAmount, setQuotedAmount] = useState("");
+  const [quoteNotes, setQuoteNotes] = useState("");
+  const [quoteRejectionReason, setQuoteRejectionReason] = useState("");
   
   // Photo upload states
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -148,6 +158,80 @@ const WorkOrderDetail = () => {
       setHistory(historyData);
     } catch (error) {
       console.error("Error loading history:", error);
+    }
+  };
+
+  const handleProvideQuote = async () => {
+    if (!id) return;
+    
+    if (jobSize === 'large' && (!quotedAmount || parseFloat(quotedAmount) <= 0)) {
+      toast.error("Please enter a valid quoted amount for large jobs");
+      return;
+    }
+    
+    setIsProcessing(true);
+    
+    try {
+      const result = await provideQuote(id, {
+        jobSize,
+        quotedAmount: jobSize === 'large' ? parseFloat(quotedAmount) : undefined,
+        quoteNotes: quoteNotes || undefined,
+      });
+      
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      
+      toast.success(jobSize === 'small' ? "Work order approved!" : "Quote sent to tenant!");
+      setJobSize('small');
+      setQuotedAmount("");
+      setQuoteNotes("");
+      loadWorkOrder();
+    } catch (error) {
+      toast.error("Failed to process work order");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleApproveQuote = async () => {
+    if (!id) return;
+    setIsProcessing(true);
+    
+    try {
+      const result = await approveQuote(id);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Quote approved! Work will begin soon.");
+      loadWorkOrder();
+    } catch (error) {
+      toast.error("Failed to approve quote");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleRejectQuote = async () => {
+    if (!id) return;
+    setIsProcessing(true);
+    
+    try {
+      const result = await rejectQuote(id, quoteRejectionReason || undefined);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Quote rejected");
+      setShowQuoteRejectDialog(false);
+      setQuoteRejectionReason("");
+      loadWorkOrder();
+    } catch (error) {
+      toast.error("Failed to reject quote");
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -572,18 +656,92 @@ const WorkOrderDetail = () => {
               
               {/* Action Buttons based on status and role */}
               <div className="mt-6 pt-6 border-t">
-                {/* Staff Actions */}
+                {/* Staff Actions - Pending: Review and provide quote */}
                 {isStaff && workOrder.status === 'pending' && (
-                  <div className="flex gap-3">
-                    <Button onClick={handleApprove} disabled={isProcessing}>
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Approve
-                    </Button>
+                  <div className="space-y-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <h4 className="font-medium text-blue-800 mb-4">Review Work Order</h4>
+                      
+                      {/* Job Size Selection */}
+                      <div className="space-y-3 mb-4">
+                        <Label className="text-sm font-medium">Job Classification</Label>
+                        <div className="flex gap-4">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="jobSize"
+                              value="small"
+                              checked={jobSize === 'small'}
+                              onChange={() => setJobSize('small')}
+                              className="h-4 w-4"
+                            />
+                            <span className="text-sm">Small Job (No Charge)</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="jobSize"
+                              value="large"
+                              checked={jobSize === 'large'}
+                              onChange={() => setJobSize('large')}
+                              className="h-4 w-4"
+                            />
+                            <span className="text-sm">Large Job (Requires Quote)</span>
+                          </label>
+                        </div>
+                      </div>
+                      
+                      {/* Quote Fields for Large Jobs */}
+                      {jobSize === 'large' && (
+                        <div className="space-y-3 mb-4 p-3 bg-white rounded-md border">
+                          <div>
+                            <Label htmlFor="quoted-amount">Quoted Amount *</Label>
+                            <div className="relative mt-1">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                              <Input
+                                id="quoted-amount"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={quotedAmount}
+                                onChange={(e) => setQuotedAmount(e.target.value)}
+                                placeholder="0.00"
+                                className="pl-7"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <Label htmlFor="quote-notes">Work Details & Explanation</Label>
+                            <Textarea
+                              id="quote-notes"
+                              value={quoteNotes}
+                              onChange={(e) => setQuoteNotes(e.target.value)}
+                              placeholder="Explain what work is needed and why this charge applies..."
+                              className="mt-1"
+                              rows={3}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="flex gap-3">
+                        <Button 
+                          onClick={handleProvideQuote} 
+                          disabled={isProcessing}
+                          className="flex-1"
+                        >
+                          {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+                          {jobSize === 'small' ? 'Approve & Start' : 'Send Quote to Tenant'}
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {/* Reject Option */}
                     <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
                       <DialogTrigger asChild>
-                        <Button variant="destructive">
+                        <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50">
                           <XCircle className="h-4 w-4 mr-2" />
-                          Reject
+                          Reject Request
                         </Button>
                       </DialogTrigger>
                       <DialogContent>
@@ -614,6 +772,120 @@ const WorkOrderDetail = () => {
                         </DialogFooter>
                       </DialogContent>
                     </Dialog>
+                  </div>
+                )}
+
+                {/* Tenant Action - Quote Provided: Approve or Reject Quote */}
+                {isOwner && workOrder.status === 'quote_provided' && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 text-orange-500 mt-0.5" />
+                      <div className="flex-1">
+                        <h4 className="font-medium text-orange-800">Quote Requires Your Approval</h4>
+                        
+                        {/* Quote Details */}
+                        <div className="mt-4 p-4 bg-white rounded-lg border border-orange-200">
+                          <div className="text-center mb-4">
+                            <p className="text-3xl font-bold text-orange-600">
+                              {workOrder.quoted_amount 
+                                ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(workOrder.quoted_amount)
+                                : 'Quote pending'}
+                            </p>
+                            <p className="text-sm text-gray-500 mt-1">Quoted Amount</p>
+                          </div>
+                          
+                          {workOrder.quote_notes && (
+                            <div className="border-t pt-3 mt-3">
+                              <p className="text-sm font-medium text-gray-700">Work Details:</p>
+                              <p className="text-sm text-gray-600 mt-1">{workOrder.quote_notes}</p>
+                            </div>
+                          )}
+                          
+                          {workOrder.quote_provided_at && (
+                            <p className="text-xs text-gray-400 mt-3">
+                              Quote provided on {formatDate(workOrder.quote_provided_at)}
+                            </p>
+                          )}
+                        </div>
+                        
+                        <div className="flex gap-3 mt-4">
+                          <Button 
+                            onClick={handleApproveQuote} 
+                            disabled={isProcessing}
+                            className="flex-1 bg-green-600 hover:bg-green-700"
+                          >
+                            {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+                            Approve Quote & Proceed
+                          </Button>
+                          <Dialog open={showQuoteRejectDialog} onOpenChange={setShowQuoteRejectDialog}>
+                            <DialogTrigger asChild>
+                              <Button variant="destructive" className="flex-1">
+                                <XCircle className="h-4 w-4 mr-2" />
+                                Reject Quote
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Reject Quote</DialogTitle>
+                                <DialogDescription>
+                                  Optionally provide a reason for rejecting this quote.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="py-4">
+                                <Label htmlFor="quote-rejection-reason">Reason (Optional)</Label>
+                                <Textarea
+                                  id="quote-rejection-reason"
+                                  value={quoteRejectionReason}
+                                  onChange={(e) => setQuoteRejectionReason(e.target.value)}
+                                  placeholder="Enter reason..."
+                                  className="mt-2"
+                                />
+                              </div>
+                              <DialogFooter>
+                                <Button variant="outline" onClick={() => setShowQuoteRejectDialog(false)}>
+                                  Cancel
+                                </Button>
+                                <Button variant="destructive" onClick={handleRejectQuote} disabled={isProcessing}>
+                                  {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                  Reject Quote
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Staff View - Quote Provided */}
+                {isStaff && workOrder.status === 'quote_provided' && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-orange-700">
+                      <Clock className="h-5 w-5" />
+                      <span className="font-medium">Quote Sent - Awaiting Tenant Approval</span>
+                    </div>
+                    <div className="mt-2 text-sm text-gray-600">
+                      <p>Quoted Amount: <strong>{workOrder.quoted_amount 
+                        ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(workOrder.quoted_amount)
+                        : 'N/A'}</strong></p>
+                      {workOrder.quote_notes && <p className="mt-1">Notes: {workOrder.quote_notes}</p>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Quote Rejected Status */}
+                {workOrder.status === 'quote_rejected' && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-red-700">
+                      <XCircle className="h-5 w-5" />
+                      <span className="font-medium">Quote Rejected by Tenant</span>
+                    </div>
+                    {workOrder.quote_rejection_reason && (
+                      <p className="mt-2 text-sm text-gray-600">
+                        <span className="font-medium">Reason:</span> {workOrder.quote_rejection_reason}
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -848,7 +1120,37 @@ const WorkOrderDetail = () => {
                     <p className="text-sm text-gray-500">{formatDate(workOrder.created_at)}</p>
                   </div>
                 </div>
-                {workOrder.approved_at && (
+                {workOrder.quote_provided_at && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                    <div>
+                      <p className="font-medium">Quote Provided</p>
+                      <p className="text-sm text-gray-500">
+                        {formatDate(workOrder.quote_provided_at)}
+                        {workOrder.quoted_amount && ` - ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(workOrder.quoted_amount)}`}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {workOrder.quote_approved_at && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <div>
+                      <p className="font-medium">Quote Approved by Tenant</p>
+                      <p className="text-sm text-gray-500">{formatDate(workOrder.quote_approved_at)}</p>
+                    </div>
+                  </div>
+                )}
+                {workOrder.quote_rejected_at && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                    <div>
+                      <p className="font-medium">Quote Rejected by Tenant</p>
+                      <p className="text-sm text-gray-500">{formatDate(workOrder.quote_rejected_at)}</p>
+                    </div>
+                  </div>
+                )}
+                {workOrder.approved_at && !workOrder.quote_approved_at && (
                   <div className="flex items-center gap-3">
                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                     <div>

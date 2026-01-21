@@ -21,7 +21,8 @@ import {
   AlertCircle,
   Eye,
   ClipboardList,
-  TrendingUp
+  TrendingUp,
+  DollarSign
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -67,8 +68,11 @@ const MaintenanceDashboard = () => {
     if (status === 'all') return workOrders;
     if (status === 'active') {
       return workOrders.filter(o => 
-        ['pending', 'approved', 'in_progress', 'completed'].includes(o.status)
+        ['pending', 'quote_provided', 'approved', 'in_progress', 'completed'].includes(o.status)
       );
+    }
+    if (status === 'quote_provided') {
+      return workOrders.filter(o => o.status === 'quote_provided');
     }
     return workOrders.filter(o => o.status === status);
   };
@@ -76,6 +80,7 @@ const MaintenanceDashboard = () => {
   // Stats
   const stats = {
     pending: workOrders.filter(o => o.status === 'pending').length,
+    quoteProvided: workOrders.filter(o => o.status === 'quote_provided').length,
     inProgress: workOrders.filter(o => o.status === 'in_progress').length,
     completed: workOrders.filter(o => o.status === 'completed').length,
     signedOff: workOrders.filter(o => o.status === 'signed_off').length,
@@ -148,7 +153,7 @@ const MaintenanceDashboard = () => {
       
       <main className="container mx-auto px-4 py-8 flex-grow">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
@@ -157,6 +162,18 @@ const MaintenanceDashboard = () => {
                   <p className="text-2xl font-bold">{stats.pending}</p>
                 </div>
                 <Clock className="h-8 w-8 text-yellow-500" />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Awaiting Quote Approval</p>
+                  <p className="text-2xl font-bold">{stats.quoteProvided}</p>
+                </div>
+                <DollarSign className="h-8 w-8 text-orange-500" />
               </div>
             </CardContent>
           </Card>
@@ -227,6 +244,10 @@ const MaintenanceDashboard = () => {
                 <TabsTrigger value="pending" className="flex items-center gap-1">
                   <Clock className="h-4 w-4" />
                   Pending ({stats.pending})
+                </TabsTrigger>
+                <TabsTrigger value="quote_provided" className="flex items-center gap-1">
+                  <DollarSign className="h-4 w-4" />
+                  Awaiting Quote ({stats.quoteProvided})
                 </TabsTrigger>
                 <TabsTrigger value="in_progress" className="flex items-center gap-1">
                   <Wrench className="h-4 w-4" />

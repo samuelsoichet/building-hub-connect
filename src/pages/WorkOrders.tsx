@@ -227,6 +227,10 @@ const WorkOrders = () => {
     switch (status) {
       case 'pending':
         return <Clock className="h-4 w-4" />;
+      case 'quote_provided':
+        return <AlertCircle className="h-4 w-4" />;
+      case 'quote_rejected':
+        return <XCircle className="h-4 w-4" />;
       case 'approved':
         return <CheckCircle className="h-4 w-4" />;
       case 'in_progress':
@@ -342,6 +346,14 @@ const WorkOrders = () => {
                           <div className="mt-3 p-2 bg-orange-50 border border-orange-200 rounded-md">
                             <p className="text-sm text-orange-700 font-medium">
                               ⚠️ Action Required: Please review and sign off on completed work
+                            </p>
+                          </div>
+                        )}
+                        {order.status === 'quote_provided' && (
+                          <div className="mt-3 p-2 bg-orange-50 border border-orange-200 rounded-md">
+                            <p className="text-sm text-orange-700 font-medium">
+                              ⚠️ Quote provided - Please review and approve to proceed
+                              {order.quoted_amount && ` (${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(order.quoted_amount)})`}
                             </p>
                           </div>
                         )}
