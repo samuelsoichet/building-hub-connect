@@ -164,6 +164,33 @@ export async function fetchWorkOrderWithDetails(id: string): Promise<{
 }
 
 // ============================================
+// Work Order Field Updates
+// ============================================
+
+/**
+ * Update work order title (staff only)
+ */
+export async function updateWorkOrderTitle(
+  workOrderId: string,
+  title: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const { error } = await (supabase as any)
+      .from('work_orders')
+      .update({ title })
+      .eq('id', workOrderId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ============================================
 // Work Order Status Transitions
 // ============================================
 

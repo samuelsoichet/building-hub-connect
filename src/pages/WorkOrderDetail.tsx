@@ -31,9 +31,12 @@ import {
   User,
   Calendar,
   MapPin,
-  AlertTriangle
+  AlertTriangle,
+  Pencil,
+  Check,
+  X
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -46,6 +49,7 @@ import {
   signOffWorkOrder,
   addWorkOrderComment,
   uploadWorkOrderPhoto,
+  updateWorkOrderTitle,
   getStatusInfo, 
   getPriorityInfo 
 } from "@/services/work-order-service";
@@ -76,6 +80,12 @@ const WorkOrderDetail = () => {
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [showSignOffDialog, setShowSignOffDialog] = useState(false);
+  
+  // Title editing states
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState("");
+  const [isSavingTitle, setIsSavingTitle] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (id) {
@@ -248,6 +258,55 @@ const WorkOrderDetail = () => {
   const isTenant = role === 'tenant';
   const isOwner = workOrder?.tenant_id === user?.id;
 
+  const handleStartEditTitle = () => {
+    if (workOrder) {
+      setEditedTitle(workOrder.title);
+      setIsEditingTitle(true);
+      setTimeout(() => titleInputRef.current?.focus(), 0);
+    }
+  };
+
+  const handleCancelEditTitle = () => {
+    setIsEditingTitle(false);
+    setEditedTitle("");
+  };
+
+  const handleSaveTitle = async () => {
+    if (!id || !editedTitle.trim()) {
+      toast.error("Title cannot be empty");
+      return;
+    }
+    
+    if (editedTitle.trim() === workOrder?.title) {
+      setIsEditingTitle(false);
+      return;
+    }
+
+    setIsSavingTitle(true);
+    try {
+      const result = await updateWorkOrderTitle(id, editedTitle.trim());
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Title updated");
+      setIsEditingTitle(false);
+      loadWorkOrder();
+    } catch (error) {
+      toast.error("Failed to update title");
+    } finally {
+      setIsSavingTitle(false);
+    }
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveTitle();
+    } else if (e.key === 'Escape') {
+      handleCancelEditTitle();
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex flex-col min-h-screen">
@@ -305,8 +364,53 @@ const WorkOrderDetail = () => {
           <Card>
             <CardHeader>
               <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-2xl">{workOrder.title}</CardTitle>
+                <div className="flex-1 mr-4">
+                  {isEditingTitle ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        ref={titleInputRef}
+                        value={editedTitle}
+                        onChange={(e) => setEditedTitle(e.target.value)}
+                        onKeyDown={handleTitleKeyDown}
+                        className="text-2xl font-semibold h-auto py-1"
+                        disabled={isSavingTitle}
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleSaveTitle}
+                        disabled={isSavingTitle}
+                      >
+                        {isSavingTitle ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Check className="h-4 w-4 text-green-600" />
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleCancelEditTitle}
+                        disabled={isSavingTitle}
+                      >
+                        <X className="h-4 w-4 text-red-600" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 group">
+                      <CardTitle className="text-2xl">{workOrder.title}</CardTitle>
+                      {isStaff && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={handleStartEditTitle}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
                   <CardDescription className="mt-2 flex items-center gap-4">
                     <span className="flex items-center gap-1">
                       <MapPin className="h-4 w-4" />
