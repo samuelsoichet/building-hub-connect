@@ -10,7 +10,7 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, Mail, Lock } from "lucide-react";
 import { 
   Select, 
   SelectContent, 
@@ -35,11 +35,18 @@ import { Checkbox } from "@/components/ui/checkbox";
 // Define form schemas
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+const magicLinkSchema = z.object({
+  email: z.string().email("Please enter a valid email address"),
 });
 
 // Fix: Change the termsAccepted validation to accept boolean and validate it separately
 const registerSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  confirmPassword: z.string().min(6, "Password must be at least 6 characters"),
   role: z.enum(["tenant", "admin", "maintenance"], {
     required_error: "Please select a role",
   }),
@@ -47,31 +54,47 @@ const registerSchema = z.object({
 }).refine((data) => data.termsAccepted === true, {
   message: "You must accept the terms and conditions",
   path: ["termsAccepted"]
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"]
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
+type MagicLinkFormValues = z.infer<typeof magicLinkSchema>;
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
 const Login = () => {
   const [isEmailSubmitted, setIsEmailSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { login, register, isAuthenticated } = useAuth();
+  const [useMagicLink, setUseMagicLink] = useState(false);
+  const { login, loginWithPassword, register, registerWithPassword, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"login" | "register">("login");
 
-  // Login form
+  // Login form (email/password)
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
+
+  // Magic link form
+  const magicLinkForm = useForm<MagicLinkFormValues>({
+    resolver: zodResolver(magicLinkSchema),
     defaultValues: {
       email: "",
     },
   });
 
-  // Register form - fix: initialize termsAccepted as boolean false
+  // Register form - with password
   const registerForm = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
       email: "",
+      password: "",
+      confirmPassword: "",
       role: "tenant",
       termsAccepted: false,
     },
@@ -88,19 +111,40 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const { error } = await login(values.email);
+      const { error } = await loginWithPassword(values.email, values.password);
       
       if (error) {
         console.error("Login error:", error);
+        toast.error(error || "Failed to sign in");
+      } else {
+        toast.success("Signed in successfully!");
+        navigate('/work-orders');
+      }
+    } catch (err: any) {
+      console.error("Login error:", err);
+      toast.error(err.message || "Failed to sign in");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleMagicLinkSubmit = async (values: MagicLinkFormValues) => {
+    console.log("Magic link form submitted with values:", values);
+    setIsLoading(true);
+
+    try {
+      const { error } = await login(values.email);
+      
+      if (error) {
+        console.error("Magic link error:", error);
         toast.error(error || "Failed to send login link");
       } else {
         setIsEmailSubmitted(true);
         toast.success("Login link sent! Please check your email");
-        // Add clear instructions for users
         toast.info("Check your email inbox and spam folder for the login link");
       }
     } catch (err: any) {
-      console.error("Login error:", err);
+      console.error("Magic link error:", err);
       toast.error(err.message || "Failed to send login link");
     } finally {
       setIsLoading(false);
@@ -112,18 +156,18 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const { error } = await register(values.email, values.role);
+      const { error } = await registerWithPassword(values.email, values.password, values.role);
       
       if (error) {
         console.error("Registration error:", error);
-        toast.error(error || "Failed to send registration link");
+        toast.error(error || "Failed to create account");
       } else {
-        setIsEmailSubmitted(true);
-        toast.success("Registration successful! Please check your email for a verification link");
+        toast.success("Account created successfully!");
+        navigate('/work-orders');
       }
     } catch (err: any) {
       console.error("Registration error:", err);
-      toast.error(err.message || "Failed to process registration");
+      toast.error(err.message || "Failed to create account");
     } finally {
       setIsLoading(false);
     }
@@ -147,11 +191,11 @@ const Login = () => {
             <Card>
               <CardHeader>
                 <CardTitle>
-                  {activeTab === "login" ? "Login" : "Register"}
+                  {activeTab === "login" ? "Sign In" : "Create Account"}
                 </CardTitle>
                 <CardDescription>
                   {activeTab === "login" 
-                    ? "Enter your email address to receive a one-time login link" 
+                    ? "Enter your credentials to access your account" 
                     : "Create a new account to access tenant services"}
                 </CardDescription>
               </CardHeader>
@@ -162,48 +206,133 @@ const Login = () => {
                   className="w-full"
                 >
                   <TabsList className="grid w-full grid-cols-2 mb-6">
-                    <TabsTrigger value="login">Login</TabsTrigger>
+                    <TabsTrigger value="login">Sign In</TabsTrigger>
                     <TabsTrigger value="register">Register</TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="login">
-                    <Form {...loginForm}>
-                      <form onSubmit={loginForm.handleSubmit(handleLoginSubmit)} className="space-y-4">
-                        <FormField
-                          control={loginForm.control}
-                          name="email"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Email Address</FormLabel>
-                              <FormControl>
-                                <Input
-                                  {...field}
-                                  type="email"
-                                  placeholder="your.email@example.com"
-                                  disabled={isLoading}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <Button 
-                          type="submit" 
-                          variant="primary"
-                          className="w-full" 
-                          disabled={isLoading}
-                        >
-                          {isLoading ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Sending...
-                            </>
-                          ) : (
-                            "Send Login Link"
-                          )}
-                        </Button>
-                      </form>
-                    </Form>
+                    {!useMagicLink ? (
+                      <Form {...loginForm}>
+                        <form onSubmit={loginForm.handleSubmit(handleLoginSubmit)} className="space-y-4">
+                          <FormField
+                            control={loginForm.control}
+                            name="email"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Email Address</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    type="email"
+                                    placeholder="your.email@example.com"
+                                    disabled={isLoading}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={loginForm.control}
+                            name="password"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Password</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    type="password"
+                                    placeholder="Enter your password"
+                                    disabled={isLoading}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <Button 
+                            type="submit" 
+                            variant="primary"
+                            className="w-full" 
+                            disabled={isLoading}
+                          >
+                            {isLoading ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Signing In...
+                              </>
+                            ) : (
+                              <>
+                                <Lock className="mr-2 h-4 w-4" />
+                                Sign In
+                              </>
+                            )}
+                          </Button>
+                        </form>
+                      </Form>
+                    ) : (
+                      <Form {...magicLinkForm}>
+                        <form onSubmit={magicLinkForm.handleSubmit(handleMagicLinkSubmit)} className="space-y-4">
+                          <FormField
+                            control={magicLinkForm.control}
+                            name="email"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Email Address</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    type="email"
+                                    placeholder="your.email@example.com"
+                                    disabled={isLoading}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <Button 
+                            type="submit" 
+                            variant="primary"
+                            className="w-full" 
+                            disabled={isLoading}
+                          >
+                            {isLoading ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Sending...
+                              </>
+                            ) : (
+                              <>
+                                <Mail className="mr-2 h-4 w-4" />
+                                Send Magic Link
+                              </>
+                            )}
+                          </Button>
+                        </form>
+                      </Form>
+                    )}
+                    
+                    <div className="mt-4 pt-4 border-t">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="w-full text-muted-foreground"
+                        onClick={() => setUseMagicLink(!useMagicLink)}
+                      >
+                        {useMagicLink ? (
+                          <>
+                            <Lock className="mr-2 h-4 w-4" />
+                            Sign in with password instead
+                          </>
+                        ) : (
+                          <>
+                            <Mail className="mr-2 h-4 w-4" />
+                            Sign in with magic link instead
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </TabsContent>
                   
                   <TabsContent value="register">
@@ -220,6 +349,44 @@ const Login = () => {
                                   {...field}
                                   type="email"
                                   placeholder="your.email@example.com"
+                                  disabled={isLoading}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={registerForm.control}
+                          name="password"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Password</FormLabel>
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  type="password"
+                                  placeholder="Create a password"
+                                  disabled={isLoading}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={registerForm.control}
+                          name="confirmPassword"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Confirm Password</FormLabel>
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  type="password"
+                                  placeholder="Confirm your password"
                                   disabled={isLoading}
                                 />
                               </FormControl>

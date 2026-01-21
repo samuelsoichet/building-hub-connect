@@ -14,8 +14,10 @@ interface AuthContextType {
   role: UserRole | null;
   isLoading: boolean;
   login: (email: string) => Promise<{ error?: string }>;
+  loginWithPassword: (email: string, password: string) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
   register: (email: string, role?: UserRole) => Promise<{ error?: string }>;
+  registerWithPassword: (email: string, password: string, role?: UserRole) => Promise<{ error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -169,7 +171,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string) => {
     try {
-      console.log("Starting login process for:", email);
+      console.log("Starting magic link login for:", email);
       const redirectTo = `${getAppUrl()}/auth/callback`;
       console.log(`Setting redirect URL to: ${redirectTo}`);
       
@@ -194,9 +196,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const loginWithPassword = async (email: string, password: string) => {
+    try {
+      console.log("Starting password login for:", email);
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      
+      if (error) {
+        console.error('Password login error:', error);
+        return { error: error.message };
+      }
+      
+      console.log("Password sign-in successful", data);
+      return {};
+    } catch (error: any) {
+      console.error("Password login error:", error);
+      return { error: error.message || "Failed to sign in" };
+    }
+  };
+
   const register = async (email: string, selectedRole: UserRole = 'tenant') => {
     try {
-      console.log("Starting registration process for:", email, "with role:", selectedRole);
+      console.log("Starting magic link registration for:", email, "with role:", selectedRole);
       const redirectTo = `${getAppUrl()}/auth/callback`;
       console.log(`Setting redirect URL to: ${redirectTo}`);
       
@@ -218,6 +242,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       console.error("Registration error:", error);
       return { error: error.message || "Failed to send registration link" };
+    }
+  };
+
+  const registerWithPassword = async (email: string, password: string, selectedRole: UserRole = 'tenant') => {
+    try {
+      console.log("Starting password registration for:", email, "with role:", selectedRole);
+      const redirectTo = `${getAppUrl()}/auth/callback`;
+      
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          emailRedirectTo: redirectTo,
+          data: {
+            role: selectedRole,
+          }
+        }
+      });
+      
+      if (error) {
+        console.error('Password registration error:', error);
+        return { error: error.message };
+      }
+      
+      console.log("Password registration successful", data);
+      return {};
+    } catch (error: any) {
+      console.error("Password registration error:", error);
+      return { error: error.message || "Failed to create account" };
     }
   };
 
@@ -248,9 +301,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       session, 
       role,
       isLoading,
-      login, 
+      login,
+      loginWithPassword,
       logout, 
-      register 
+      register,
+      registerWithPassword,
     }}>
       {children}
     </AuthContext.Provider>
