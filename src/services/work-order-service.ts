@@ -380,7 +380,53 @@ export async function updateWorkOrderTitle(
 }
 
 /**
- * Delete a work order photo
+ * Soft delete a work order photo (for tenants)
+ * Sets is_deleted = true instead of permanently removing
+ */
+export async function softDeleteWorkOrderPhoto(
+  photoId: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const { error: updateError } = await (supabase as any)
+      .from('work_order_photos')
+      .update({ is_deleted: true })
+      .eq('id', photoId);
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Restore a soft-deleted work order photo (for staff only)
+ */
+export async function restoreWorkOrderPhoto(
+  photoId: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const { error: updateError } = await (supabase as any)
+      .from('work_order_photos')
+      .update({ is_deleted: false })
+      .eq('id', photoId);
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Hard delete a work order photo (for admins only)
+ * Permanently removes the photo from storage and database
  */
 export async function deleteWorkOrderPhoto(
   photoId: string

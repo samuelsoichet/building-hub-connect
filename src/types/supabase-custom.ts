@@ -144,6 +144,7 @@ export interface WorkOrderPhoto {
   photo_url: string;
   photo_type: 'initial' | 'in_progress' | 'completion';
   caption: string | null;
+  is_deleted: boolean;
   created_at: string;
 }
 
@@ -154,6 +155,7 @@ export interface WorkOrderPhotoInsert {
   photo_url: string;
   photo_type: 'initial' | 'in_progress' | 'completion';
   caption?: string | null;
+  is_deleted?: boolean;
   created_at?: string;
 }
 
