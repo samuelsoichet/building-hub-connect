@@ -526,7 +526,14 @@ const WorkOrderDetail = () => {
           <Button 
             variant="ghost" 
             className="text-white mb-2"
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              // Navigate to appropriate page based on role
+              if (role === 'admin' || role === 'maintenance') {
+                navigate('/maintenance-dashboard');
+              } else {
+                navigate('/work-orders');
+              }
+            }}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
