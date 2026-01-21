@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Upload, Image, Plus, Eye, Loader2, Clock, CheckCircle, AlertCircle, XCircle, Wrench } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,6 +30,7 @@ const WorkOrders = () => {
 
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,6 +76,39 @@ const WorkOrders = () => {
         setPhotoPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      setPhotoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setPhotoPreview(null);
+    setPhotoFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -325,7 +359,12 @@ const WorkOrders = () => {
                   {/* Photo Upload Section */}
                   <div className="space-y-2">
                     <Label htmlFor="photo">Upload Photo (Optional)</Label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-md p-4">
+                    <div 
+                      className="border-2 border-dashed border-gray-300 rounded-md p-4"
+                      onDragOver={handleDragOver}
+                      onDragEnter={handleDragEnter}
+                      onDrop={handleDrop}
+                    >
                       <div className="flex flex-col items-center">
                         {photoPreview ? (
                           <div className="relative w-full">
@@ -339,10 +378,7 @@ const WorkOrders = () => {
                               variant="outline" 
                               size="sm"
                               className="absolute top-0 right-0 bg-white" 
-                              onClick={() => {
-                                setPhotoPreview(null);
-                                setPhotoFile(null);
-                              }}
+                              onClick={handleRemovePhoto}
                             >
                               Remove
                             </Button>
@@ -372,6 +408,7 @@ const WorkOrders = () => {
                               accept="image/*"
                               className="sr-only"
                               onChange={handleFileChange}
+                              ref={fileInputRef}
                             />
                           </label>
                         </div>
