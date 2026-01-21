@@ -196,3 +196,23 @@ export interface Payment {
   created_at: string;
   updated_at: string;
 }
+
+export interface WorkOrderHistory {
+  id: string;
+  work_order_id: string;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  changed_by: string;
+  changed_at: string;
+}
+
+export interface WorkOrderHistoryInsert {
+  id?: string;
+  work_order_id: string;
+  field_name: string;
+  old_value?: string | null;
+  new_value?: string | null;
+  changed_by: string;
+  changed_at?: string;
+}

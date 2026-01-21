@@ -43,8 +43,13 @@ import {
   X,
   FileText,
   Trash2,
-  Plus
+  Plus,
+  History,
+  ChevronDown,
+  ChevronUp,
+  ArrowRight
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -60,10 +65,11 @@ import {
   uploadWorkOrderPhoto,
   updateWorkOrderField,
   deleteWorkOrderPhoto,
+  fetchWorkOrderHistory,
   getStatusInfo, 
   getPriorityInfo 
 } from "@/services/work-order-service";
-import type { WorkOrder, WorkOrderPhoto, WorkOrderComment } from "@/types/supabase-custom";
+import type { WorkOrder, WorkOrderPhoto, WorkOrderComment, WorkOrderHistory } from "@/types/supabase-custom";
 import { InlineEdit } from "@/components/InlineEdit";
 import { 
   processFileForUpload, 
@@ -106,10 +112,15 @@ const WorkOrderDetail = () => {
   const [isEditingPriority, setIsEditingPriority] = useState(false);
   const [editedPriority, setEditedPriority] = useState("");
   const [isSavingPriority, setIsSavingPriority] = useState(false);
+  
+  // History
+  const [history, setHistory] = useState<WorkOrderHistory[]>([]);
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
 
   useEffect(() => {
     if (id) {
       loadWorkOrder();
+      loadHistory();
     }
   }, [id]);
 
@@ -127,6 +138,16 @@ const WorkOrderDetail = () => {
       toast.error("Failed to load work order");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadHistory = async () => {
+    if (!id) return;
+    try {
+      const historyData = await fetchWorkOrderHistory(id);
+      setHistory(historyData);
+    } catch (error) {
+      console.error("Error loading history:", error);
     }
   };
 
@@ -275,8 +296,10 @@ const WorkOrderDetail = () => {
   };
 
   const isStaff = role === 'admin' || role === 'maintenance';
-  const isTenant = role === 'tenant';
   const isOwner = workOrder?.tenant_id === user?.id;
+  
+  // Can edit if staff OR (owner AND status is pending)
+  const canEdit = isStaff || (isOwner && workOrder?.status === 'pending');
 
   // Field update handlers
   const handleUpdateField = async (field: 'title' | 'location' | 'description', value: string) => {
@@ -288,6 +311,7 @@ const WorkOrderDetail = () => {
     }
     toast.success(`${field.charAt(0).toUpperCase() + field.slice(1)} updated`);
     loadWorkOrder();
+    loadHistory();
   };
 
   const handleSavePriority = async () => {
@@ -303,11 +327,17 @@ const WorkOrderDetail = () => {
       toast.success("Priority updated");
       setIsEditingPriority(false);
       loadWorkOrder();
+      loadHistory();
     } catch (error) {
       toast.error("Failed to update priority");
     } finally {
       setIsSavingPriority(false);
     }
+  };
+
+  // Format field name for display
+  const formatFieldName = (field: string) => {
+    return field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ');
   };
 
   const handleStartEditPriority = () => {
@@ -432,7 +462,7 @@ const WorkOrderDetail = () => {
                   <InlineEdit
                     value={workOrder.title}
                     onSave={(value) => handleUpdateField('title', value)}
-                    isEditable={isStaff}
+                    isEditable={canEdit}
                     displayClassName="text-2xl font-semibold"
                     inputClassName="text-2xl font-semibold h-auto py-1"
                     placeholder="Enter title..."
@@ -445,7 +475,7 @@ const WorkOrderDetail = () => {
                       <InlineEdit
                         value={workOrder.location || ''}
                         onSave={(value) => handleUpdateField('location', value)}
-                        isEditable={isStaff}
+                        isEditable={canEdit}
                         displayClassName="text-sm"
                         inputClassName="text-sm h-8"
                         placeholder="Enter location..."
@@ -509,7 +539,7 @@ const WorkOrderDetail = () => {
                       <Badge variant="outline" className={`${priorityInfo.bgColor} ${priorityInfo.color}`}>
                         {priorityInfo.label} Priority
                       </Badge>
-                      {isStaff && (
+                      {canEdit && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -531,7 +561,7 @@ const WorkOrderDetail = () => {
                 <InlineEdit
                   value={workOrder.description || ''}
                   onSave={(value) => handleUpdateField('description', value)}
-                  isEditable={isStaff}
+                  isEditable={canEdit}
                   type="textarea"
                   displayClassName="text-foreground"
                   inputClassName=""
@@ -875,7 +905,7 @@ const WorkOrderDetail = () => {
                   <Camera className="h-5 w-5" />
                   Photos & Documents
                 </CardTitle>
-                {isStaff && (
+                {canEdit && (
                   <div>
                     <Input
                       ref={photoInputRef}
@@ -907,7 +937,7 @@ const WorkOrderDetail = () => {
                 <div className="text-center py-8 text-muted-foreground">
                   <Camera className="h-12 w-12 mx-auto mb-3 opacity-50" />
                   <p>No photos or documents attached</p>
-                  {isStaff && (
+                  {canEdit && (
                     <Button
                       variant="link"
                       onClick={() => photoInputRef.current?.click()}
@@ -949,7 +979,7 @@ const WorkOrderDetail = () => {
                         >
                           {photo.photo_type}
                         </Badge>
-                        {isStaff && (
+                        {canEdit && (
                           <Button
                             size="sm"
                             variant="destructive"
@@ -971,6 +1001,62 @@ const WorkOrderDetail = () => {
               )}
             </CardContent>
           </Card>
+
+          {/* Change History Card */}
+          {history.length > 0 && (
+            <Card>
+              <Collapsible open={isHistoryExpanded} onOpenChange={setIsHistoryExpanded}>
+                <CardHeader className="pb-3">
+                  <CollapsibleTrigger asChild>
+                    <div className="flex items-center justify-between cursor-pointer hover:bg-muted/50 -mx-2 px-2 py-1 rounded-md transition-colors">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <History className="h-5 w-5" />
+                        Change History
+                        <Badge variant="secondary" className="ml-2">{history.length}</Badge>
+                      </CardTitle>
+                      {isHistoryExpanded ? (
+                        <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </div>
+                  </CollapsibleTrigger>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent className="pt-0">
+                    <div className="space-y-3">
+                      {history.map((entry) => (
+                        <div 
+                          key={entry.id} 
+                          className="border-l-2 border-muted pl-4 py-2 hover:border-primary transition-colors"
+                        >
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                            <Calendar className="h-3 w-3" />
+                            <span>{formatDate(entry.changed_at)}</span>
+                          </div>
+                          <div className="text-sm">
+                            <span className="font-medium text-foreground">
+                              {formatFieldName(entry.field_name)}
+                            </span>
+                            <span className="text-muted-foreground"> changed</span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1 text-sm">
+                            <span className="bg-red-50 text-red-700 px-2 py-0.5 rounded line-through max-w-[200px] truncate">
+                              {entry.old_value || '(empty)'}
+                            </span>
+                            <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                            <span className="bg-green-50 text-green-700 px-2 py-0.5 rounded max-w-[200px] truncate">
+                              {entry.new_value || '(empty)'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Collapsible>
+            </Card>
+          )}
 
           {/* Comments Card */}
           <Card>

@@ -5,6 +5,7 @@ import type {
   WorkOrderUpdate, 
   WorkOrderPhoto, 
   WorkOrderComment,
+  WorkOrderHistory,
   WorkOrderStatus,
   WorkOrderPriority
 } from "@/types/supabase-custom";
@@ -168,7 +169,7 @@ export async function fetchWorkOrderWithDetails(id: string): Promise<{
 // ============================================
 
 /**
- * Update work order field (staff only)
+ * Update work order field with history tracking
  */
 export async function updateWorkOrderField(
   workOrderId: string,
@@ -176,18 +177,162 @@ export async function updateWorkOrderField(
   value: string
 ): Promise<{ success: boolean; error: string | null }> {
   try {
-    const { error } = await (supabase as any)
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    // Get current value first
+    const { data: currentWorkOrder, error: fetchError } = await (supabase as any)
+      .from('work_orders')
+      .select(field)
+      .eq('id', workOrderId)
+      .single();
+
+    if (fetchError) {
+      return { success: false, error: fetchError.message };
+    }
+
+    const oldValue = currentWorkOrder?.[field] ?? null;
+    
+    // Skip if value hasn't changed
+    if (oldValue === value) {
+      return { success: true, error: null };
+    }
+
+    // Update the work order
+    const { error: updateError } = await (supabase as any)
       .from('work_orders')
       .update({ [field]: value })
       .eq('id', workOrderId);
 
-    if (error) {
-      return { success: false, error: error.message };
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+
+    // Log the change to history
+    const { error: historyError } = await (supabase as any)
+      .from('work_order_history')
+      .insert({
+        work_order_id: workOrderId,
+        field_name: field,
+        old_value: oldValue?.toString() ?? null,
+        new_value: value,
+        changed_by: user.id,
+      });
+
+    if (historyError) {
+      console.warn("Failed to log history:", historyError);
+      // Don't fail the operation if history logging fails
     }
 
     return { success: true, error: null };
   } catch (err: any) {
     return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Update multiple work order fields at once with history tracking
+ */
+export async function updateWorkOrder(
+  workOrderId: string,
+  updates: Partial<Pick<WorkOrder, 'title' | 'location' | 'description' | 'priority'>>
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    // Get current values first
+    const fieldsToFetch = Object.keys(updates).join(', ');
+    const { data: currentWorkOrder, error: fetchError } = await (supabase as any)
+      .from('work_orders')
+      .select(fieldsToFetch)
+      .eq('id', workOrderId)
+      .single();
+
+    if (fetchError) {
+      return { success: false, error: fetchError.message };
+    }
+
+    // Filter out unchanged values and prepare history records
+    const changedFields: Record<string, string> = {};
+    const historyRecords: Array<{
+      work_order_id: string;
+      field_name: string;
+      old_value: string | null;
+      new_value: string;
+      changed_by: string;
+    }> = [];
+
+    for (const [field, newValue] of Object.entries(updates)) {
+      const oldValue = currentWorkOrder?.[field];
+      if (oldValue !== newValue && newValue !== undefined) {
+        changedFields[field] = newValue as string;
+        historyRecords.push({
+          work_order_id: workOrderId,
+          field_name: field,
+          old_value: oldValue?.toString() ?? null,
+          new_value: newValue as string,
+          changed_by: user.id,
+        });
+      }
+    }
+
+    // If nothing changed, return early
+    if (Object.keys(changedFields).length === 0) {
+      return { success: true, error: null };
+    }
+
+    // Update the work order
+    const { error: updateError } = await (supabase as any)
+      .from('work_orders')
+      .update(changedFields)
+      .eq('id', workOrderId);
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+
+    // Log all changes to history
+    if (historyRecords.length > 0) {
+      const { error: historyError } = await (supabase as any)
+        .from('work_order_history')
+        .insert(historyRecords);
+
+      if (historyError) {
+        console.warn("Failed to log history:", historyError);
+      }
+    }
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Fetch change history for a work order
+ */
+export async function fetchWorkOrderHistory(workOrderId: string): Promise<WorkOrderHistory[]> {
+  try {
+    const { data, error } = await (supabase as any)
+      .from('work_order_history')
+      .select('*')
+      .eq('work_order_id', workOrderId)
+      .order('changed_at', { ascending: false });
+
+    if (error) {
+      console.error("Error fetching work order history:", error);
+      return [];
+    }
+
+    return data || [];
+  } catch (err) {
+    console.error("Error in fetchWorkOrderHistory:", err);
+    return [];
   }
 }
 
@@ -593,4 +738,4 @@ export function getPriorityInfo(priority: WorkOrderPriority): {
 }
 
 // Re-export types for convenience
-export type { WorkOrder, WorkOrderPhoto, WorkOrderComment, WorkOrderStatus, WorkOrderPriority };
+export type { WorkOrder, WorkOrderPhoto, WorkOrderComment, WorkOrderHistory, WorkOrderStatus, WorkOrderPriority };
