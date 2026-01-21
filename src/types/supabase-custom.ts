@@ -205,6 +205,11 @@ export interface WorkOrderHistory {
   new_value: string | null;
   changed_by: string;
   changed_at: string;
+  // Joined profile data
+  changed_by_profile?: {
+    full_name: string | null;
+    email: string | null;
+  } | null;
 }
 
 export interface WorkOrderHistoryInsert {

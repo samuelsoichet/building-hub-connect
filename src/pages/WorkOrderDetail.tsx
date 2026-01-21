@@ -1025,32 +1025,40 @@ const WorkOrderDetail = () => {
                 <CollapsibleContent>
                   <CardContent className="pt-0">
                     <div className="space-y-3">
-                      {history.map((entry) => (
-                        <div 
-                          key={entry.id} 
-                          className="border-l-2 border-muted pl-4 py-2 hover:border-primary transition-colors"
-                        >
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                            <Calendar className="h-3 w-3" />
-                            <span>{formatDate(entry.changed_at)}</span>
+                      {history.map((entry) => {
+                        const changerName = entry.changed_by_profile?.full_name 
+                          || entry.changed_by_profile?.email 
+                          || 'Unknown user';
+                        return (
+                          <div 
+                            key={entry.id} 
+                            className="border-l-2 border-muted pl-4 py-2 hover:border-primary transition-colors"
+                          >
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                              <User className="h-3 w-3" />
+                              <span className="font-medium text-foreground">{changerName}</span>
+                              <span className="text-muted-foreground">•</span>
+                              <Calendar className="h-3 w-3" />
+                              <span>{formatDate(entry.changed_at)}</span>
+                            </div>
+                            <div className="text-sm">
+                              <span className="font-medium text-foreground">
+                                {formatFieldName(entry.field_name)}
+                              </span>
+                              <span className="text-muted-foreground"> changed</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1 text-sm">
+                              <span className="bg-red-50 text-red-700 px-2 py-0.5 rounded line-through max-w-[200px] truncate">
+                                {entry.old_value || '(empty)'}
+                              </span>
+                              <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                              <span className="bg-green-50 text-green-700 px-2 py-0.5 rounded max-w-[200px] truncate">
+                                {entry.new_value || '(empty)'}
+                              </span>
+                            </div>
                           </div>
-                          <div className="text-sm">
-                            <span className="font-medium text-foreground">
-                              {formatFieldName(entry.field_name)}
-                            </span>
-                            <span className="text-muted-foreground"> changed</span>
-                          </div>
-                          <div className="flex items-center gap-2 mt-1 text-sm">
-                            <span className="bg-red-50 text-red-700 px-2 py-0.5 rounded line-through max-w-[200px] truncate">
-                              {entry.old_value || '(empty)'}
-                            </span>
-                            <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                            <span className="bg-green-50 text-green-700 px-2 py-0.5 rounded max-w-[200px] truncate">
-                              {entry.new_value || '(empty)'}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </CardContent>
                 </CollapsibleContent>
